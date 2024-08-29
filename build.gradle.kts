@@ -1,4 +1,4 @@
-import org.gradle.api.tasks.Exec
+import java.io.ByteArrayOutputStream
 
 plugins {
     id("java")
@@ -23,12 +23,16 @@ tasks.test {
 }
 
 tasks.register("pushToGithub") {
+    val stdout = ByteArrayOutputStream()
     doLast {
         exec {
             commandLine("git", "commit", "-am", "Version $version")
+            standardOutput = stdout
         }
         exec {
             commandLine("git", "push", "-u", "origin")
+            standardOutput = stdout
         }
+        println(stdout)
     }
 }
