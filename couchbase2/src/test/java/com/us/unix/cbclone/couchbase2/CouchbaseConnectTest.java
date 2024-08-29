@@ -1,11 +1,12 @@
 package com.us.unix.cbclone.couchbase2;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.Properties;
 
-public class CouchbaseStreamTest {
+public class CouchbaseConnectTest {
   public static final String CLUSTER_HOST = "couchbase.hostname";
   public static final String ADMIN_USER = "couchbase.adminUsername";
   public static final String ADMIN_PASSWORD = "couchbase.adminPassword";
@@ -19,7 +20,7 @@ public class CouchbaseStreamTest {
   public static final String DEFAULT_BUCKET = "test";
 
   @Test
-  public void testBucketExport() {
+  public void testCouchbaseConnect() {
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
     Properties properties = new Properties();
 
@@ -37,16 +38,15 @@ public class CouchbaseStreamTest {
     String bucket = properties.getProperty(CLUSTER_BUCKET, DEFAULT_BUCKET);
     String directory = properties.getProperty(TEST_DIRECTORY, TEST_DIRECTORY);
 
-    CouchbaseStream stream;
-    if (!adminUser.isEmpty() && !adminPass.isEmpty()) {
-      stream = new CouchbaseStream(hostname, adminUser, adminPass, bucket, true);
-    } else {
-      stream = new CouchbaseStream(hostname, bucketPass, bucket, true);
-    }
-    try {
-      stream.toCompressedFile(String.format("%s/%s.gz", directory, bucket));
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
+    CouchbaseConnect db = dbBuilder.connect(hostname, adminUser, adminPass).build();
+    boolean result = db.isBucket(DEFAULT_BUCKET);
+    Assertions.assertFalse(result);
+    db.createBucket(DEFAULT_BUCKET);
+    result = db.isBucket(DEFAULT_BUCKET);
+    Assertions.assertTrue(result);
+    db.dropBucket(DEFAULT_BUCKET);
+    db.connectBucket(bucket);
+    db.getIndexes();
   }
 }
