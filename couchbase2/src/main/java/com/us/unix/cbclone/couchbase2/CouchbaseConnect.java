@@ -1,12 +1,12 @@
 package com.us.unix.cbclone.couchbase2;
 
-import com.couchbase.client.core.env.*;
 import com.couchbase.client.java.*;
 import com.couchbase.client.java.bucket.BucketType;
 import com.couchbase.client.java.cluster.BucketSettings;
 import com.couchbase.client.java.cluster.ClusterManager;
 import com.couchbase.client.java.cluster.ClusterInfo;
 import com.couchbase.client.java.cluster.DefaultBucketSettings;
+import com.couchbase.client.java.document.json.JsonArray;
 import com.couchbase.client.java.error.DocumentDoesNotExistException;
 import com.couchbase.client.java.error.BucketAlreadyExistsException;
 import com.couchbase.client.java.error.BucketDoesNotExistException;
@@ -15,19 +15,16 @@ import com.couchbase.client.java.document.json.JsonObject;
 import com.couchbase.client.java.document.JsonDocument;
 import com.couchbase.client.java.query.*;
 import com.couchbase.client.java.query.consistency.ScanConsistency;
-import com.couchbase.client.java.util.features.Version;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
-import java.time.Duration;
 import java.util.*;
-import java.util.stream.Stream;
 
 import com.us.unix.cbclone.REST;
+import com.us.unix.cbclone.Index;
 
 /**
  * Couchbase Connection Utility.
@@ -37,8 +34,8 @@ public final class CouchbaseConnect {
   private volatile Cluster cluster;
   private volatile ClusterManager clusterManager;
   private volatile Bucket bucket;
-  public static final String DEFAULT_ADMIN_USER = "Administrator";
-  public static final String DEFAULT_ADMIN_PASSWORD = "password";
+  public static final String DEFAULT_USER = "Administrator";
+  public static final String DEFAULT_PASSWORD = "password";
   public static final String DEFAULT_BUCKET_PASSWORD = "";
   public static final String DEFAULT_HOSTNAME = "127.0.0.1";
   public static final Boolean DEFAULT_SSL_MODE = false;
@@ -47,10 +44,11 @@ public final class CouchbaseConnect {
   private static final String DEFAULT_DATABASE = null;
   private static final Object STARTUP_COORDINATOR = new Object();
   private final String hostname;
-  private final String adminUsername;
-  private final String adminPassword;
+  private final String username;
+  private final String password;
   private String bucketPassword;
   private int bucketReplicas;
+  private final boolean legacyAuth;
   private final String rootCert;
   private final String clientCert;
   private String project;
@@ -70,13 +68,14 @@ public final class CouchbaseConnect {
    * Builder Class.
    */
   public static class CouchbaseBuilder {
-    private String hostName = DEFAULT_HOSTNAME;
-    private String adminUser = DEFAULT_ADMIN_USER;
-    private String adminPass = DEFAULT_ADMIN_PASSWORD;
+    private String hostname = DEFAULT_HOSTNAME;
+    private String username = DEFAULT_USER;
+    private String password = DEFAULT_PASSWORD;
     private String bucketPass = DEFAULT_BUCKET_PASSWORD;
     private String rootCert;
     private String clientCert;
     private Boolean sslMode = DEFAULT_SSL_MODE;
+    private Boolean legacyAuth = false;
     private String bucketName;
     private int bucketReplicas = 1;
     private int ttlSeconds = 0;
@@ -87,17 +86,17 @@ public final class CouchbaseConnect {
     }
 
     public CouchbaseBuilder host(final String name) {
-      this.hostName = name;
+      this.hostname = name;
       return this;
     }
 
-    public CouchbaseBuilder adminUser(final String name) {
-      this.adminPass = name;
+    public CouchbaseBuilder username(final String name) {
+      this.password = name;
       return this;
     }
 
-    public CouchbaseBuilder adminPassword(final String name) {
-      this.adminPass = name;
+    public CouchbaseBuilder password(final String name) {
+      this.password = name;
       return this;
     }
 
@@ -121,10 +120,15 @@ public final class CouchbaseConnect {
       return this;
     }
 
+    public CouchbaseBuilder legacyAuth(final Boolean mode) {
+      this.legacyAuth = mode;
+      return this;
+    }
+
     public CouchbaseBuilder connect(final String host, final String user, final String password) {
-      this.hostName = host;
-      this.adminUser = user;
-      this.adminPass = password;
+      this.hostname = host;
+      this.username = user;
+      this.password = password;
       return this;
     }
 
@@ -144,12 +148,13 @@ public final class CouchbaseConnect {
   }
 
   private CouchbaseConnect(CouchbaseBuilder builder) {
-    hostname = builder.hostName;
-    adminUsername = builder.adminUser;
-    adminPassword = builder.adminPass;
+    hostname = builder.hostname;
+    username = builder.username;
+    password = builder.password;
     bucketPassword = builder.bucketPass;
     rootCert = builder.rootCert;
     clientCert = builder.clientCert;
+    legacyAuth = builder.legacyAuth;
     useSsl = builder.sslMode;
     ttlSeconds = builder.ttlSeconds;
     bucketName = builder.bucketName;
@@ -175,7 +180,10 @@ public final class CouchbaseConnect {
         if (cluster == null) {
 
           cluster = CouchbaseCluster.create(hostname);
-          clusterManager = cluster.clusterManager(adminUsername, adminPassword);
+          if (!legacyAuth) {
+            cluster.authenticate(username, password);
+          }
+          clusterManager = cluster.clusterManager(username, password);
           getClusterInfo();
         }
       } catch(Exception e) {
@@ -199,11 +207,11 @@ public final class CouchbaseConnect {
   }
 
   public String adminUserValue() {
-    return adminUsername;
+    return username;
   }
 
   public String adminPasswordValue() {
-    return adminPassword;
+    return password;
   }
 
   public boolean externalValue() {
@@ -240,7 +248,7 @@ public final class CouchbaseConnect {
   }
 
   public Boolean isBucket(String bucket) {
-    REST client = new REST(hostname, adminUsername, adminPassword, useSsl, adminPort).enableDebug(true);
+    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(true);
     try {
       String endpoint = "pools/default/buckets";
       List<String> results = client.get(endpoint).validate().json().findValuesAsText("name");
@@ -363,11 +371,23 @@ public final class CouchbaseConnect {
     return data;
   }
 
-  public void getIndexes() {
+  public List<Index> getIndexes() {
     List<JsonObject> indexes = query("SELECT * FROM system:indexes;");
-    System.out.println("Get Indexes");
+    List<Index> result = new ArrayList<>();
     for (JsonObject index : indexes) {
-      System.out.println(index.toString());
+      if (index.containsKey("is_primary") && index.get("is_primary").toString().equals("true")) {
+        Index i = new Index(index.get("keyspace_id").toString());
+        result.add(i);
+        continue;
+      }
+      for (Object key : (JsonArray) index.get("index_key")) {
+        Index i = new Index(key.toString(),
+            index.get("keyspace_id").toString(),
+            index.get("name").toString(),
+            index.containsKey("condition") ? index.get("condition").toString() : "");
+        result.add(i);
+      }
     }
+    return result;
   }
 }

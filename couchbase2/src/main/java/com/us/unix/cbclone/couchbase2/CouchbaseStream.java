@@ -30,12 +30,12 @@ import org.slf4j.Logger;
 public class CouchbaseStream {
   static final Logger LOGGER = LoggerFactory.getLogger(CouchbaseStream.class);
   private final String hostname;
-  private final String adminUsername;
-  private final String adminPassword;
+  private final String username;
+  private final String password;
   private final String bucketPassword;
   private final String bucket;
   private final Boolean useSsl;
-  private boolean collectionEnabled;
+  private boolean legacyAuth = false;
   private final AtomicLong totalSize = new AtomicLong(0);
   private final AtomicLong docCount = new AtomicLong(0);
   private final AtomicLong sentCount = new AtomicLong(0);
@@ -44,8 +44,8 @@ public class CouchbaseStream {
 
   public CouchbaseStream(String hostname, String username, String password, String bucket, Boolean ssl) {
     this.hostname = hostname;
-    this.adminUsername = username;
-    this.adminPassword = password;
+    this.username = username;
+    this.password = password;
     this.bucketPassword = "";
     this.bucket = bucket;
     this.useSsl = ssl;
@@ -54,9 +54,10 @@ public class CouchbaseStream {
 
   public CouchbaseStream(String hostname, String password, String bucket, Boolean ssl) {
     this.hostname = hostname;
-    this.adminUsername = "";
-    this.adminPassword = "";
+    this.username = "";
+    this.password = "";
     this.bucketPassword = password;
+    this.legacyAuth = true;
     this.bucket = bucket;
     this.useSsl = ssl;
     this.init();
@@ -83,12 +84,12 @@ public class CouchbaseStream {
         .controlParam(DcpControl.Names.CONNECTION_BUFFER_SIZE, 1048576)
         .bufferAckWatermark(75);
 
-    if (!adminUsername.isEmpty()) {
-      clientBuilder.credentials(adminUsername, adminPassword);
-    }
-
-    if (!bucketPassword.isEmpty()) {
-      clientBuilder.password(bucketPassword);
+    if (!legacyAuth) {
+      clientBuilder.credentials(username, password);
+    } else {
+      if (!bucketPassword.isEmpty()) {
+        clientBuilder.password(bucketPassword);
+      }
     }
 
     client = clientBuilder.build();
