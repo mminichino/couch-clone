@@ -18,15 +18,12 @@ import com.couchbase.client.java.query.consistency.ScanConsistency;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.us.unix.cbclone.core.Group;
+import com.us.unix.cbclone.core.*;
+import com.us.unix.cbclone.core.Index;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
 import java.util.*;
-
-import com.us.unix.cbclone.core.REST;
-import com.us.unix.cbclone.core.Index;
-import com.us.unix.cbclone.core.User;
 
 /**
  * Couchbase Connection Utility.
@@ -263,15 +260,19 @@ public final class CouchbaseConnect {
     return total - used;
   }
 
-  public Boolean isBucket(String bucket) {
+  public List<String> listBuckets() {
     REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
     try {
       String endpoint = "pools/default/buckets";
-      List<String> results = client.get(endpoint).validate().json().findValuesAsText("name");
-      return results.contains(bucket);
+      return client.get(endpoint).validate().json().findValuesAsText("name");
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public Boolean isBucket(String bucket) {
+    List<String> results = listBuckets();
+    return results.contains(bucket);
   }
 
   public void connectBucket() {
@@ -402,6 +403,21 @@ public final class CouchbaseConnect {
             index.get("name").toString(),
             index.containsKey("condition") ? index.get("condition").toString() : "");
         result.add(i);
+      }
+    }
+    return result;
+  }
+
+  public List<Table> getBuckets() {
+    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
+    List<Table> result = new ArrayList<>();
+    for (String bucket : listBuckets()) {
+      try {
+        String endpoint = "pools/default/buckets/" + bucket;
+        JsonNode data = client.get(endpoint).validate().json();
+        result.add(new Table(data, new ArrayList<>()));
+      } catch (Exception e) {
+        throw new RuntimeException(e);
       }
     }
     return result;

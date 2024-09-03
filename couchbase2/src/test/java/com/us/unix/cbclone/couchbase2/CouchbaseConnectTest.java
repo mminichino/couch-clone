@@ -1,8 +1,8 @@
 package com.us.unix.cbclone.couchbase2;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.us.unix.cbclone.core.Group;
 import com.us.unix.cbclone.core.Index;
+import com.us.unix.cbclone.core.Table;
 import com.us.unix.cbclone.core.User;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -62,6 +62,9 @@ public class CouchbaseConnectTest {
     Assertions.assertTrue(result);
     db.dropBucket(DEFAULT_BUCKET);
     db.connectBucket(bucket);
+    for (Table table : db.getBuckets()) {
+      Assertions.assertNotNull(table.name);
+    }
     for (Index index : db.getIndexes()) {
       Assertions.assertNotNull(index.column);
     }
