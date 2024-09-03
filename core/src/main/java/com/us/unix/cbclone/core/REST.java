@@ -1,4 +1,4 @@
-package com.us.unix.cbclone;
+package com.us.unix.cbclone.core;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,7 +18,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 
 /**

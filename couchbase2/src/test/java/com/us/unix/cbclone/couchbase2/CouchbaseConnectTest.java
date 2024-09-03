@@ -1,6 +1,9 @@
 package com.us.unix.cbclone.couchbase2;
 
-import com.us.unix.cbclone.Index;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.us.unix.cbclone.core.Group;
+import com.us.unix.cbclone.core.Index;
+import com.us.unix.cbclone.core.User;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -15,7 +18,6 @@ public class CouchbaseConnectTest {
   public static final String BUCKET_PASSWORD = "couchbase.bucketPassword";
   public static final String LEGACY_AUTH = "couchbase.legacyAuth";
   public static final String CLUSTER_BUCKET = "couchbase.bucket";
-  public static final String TEST_DIRECTORY = "test.directory";
   public static final String DEFAULT_USER = "Administrator";
   public static final String DEFAULT_PASSWORD = "password";
   public static final String DEFAULT_BUCKET_PASSWORD = "";
@@ -24,7 +26,7 @@ public class CouchbaseConnectTest {
   public static final String DEFAULT_BUCKET = "test";
 
   @ParameterizedTest
-  @ValueSource(strings = {"test.4.properties", "test.5.properties"})
+  @ValueSource(strings = {"test.4.properties", "test.5.properties", "test.6.properties"})
   public void testCouchbaseConnect(String propertyFile) {
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
     Properties properties = new Properties();
@@ -43,7 +45,6 @@ public class CouchbaseConnectTest {
     String bucketPass = properties.getProperty(BUCKET_PASSWORD, DEFAULT_BUCKET_PASSWORD);
     boolean legacyAuth = Boolean.parseBoolean(properties.getProperty(LEGACY_AUTH, DEFAULT_LEGACY_AUTH));
     String bucket = properties.getProperty(CLUSTER_BUCKET, DEFAULT_BUCKET);
-    String directory = properties.getProperty(TEST_DIRECTORY, TEST_DIRECTORY);
 
     CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
     CouchbaseConnect db = dbBuilder
@@ -63,6 +64,12 @@ public class CouchbaseConnectTest {
     db.connectBucket(bucket);
     for (Index index : db.getIndexes()) {
       Assertions.assertNotNull(index.column);
+    }
+    for (User user : db.getUsers()) {
+      Assertions.assertNotNull(user.username);
+    }
+    for (Group group : db.getGroups()) {
+      Assertions.assertNotNull(group.groupname);
     }
   }
 }

@@ -18,13 +18,15 @@ import com.couchbase.client.java.query.consistency.ScanConsistency;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.us.unix.cbclone.core.Group;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
 import java.util.*;
 
-import com.us.unix.cbclone.REST;
-import com.us.unix.cbclone.Index;
+import com.us.unix.cbclone.core.REST;
+import com.us.unix.cbclone.core.Index;
+import com.us.unix.cbclone.core.User;
 
 /**
  * Couchbase Connection Utility.
@@ -63,6 +65,10 @@ public final class CouchbaseConnect {
   private JsonNode hostMap = mapper.createObjectNode();
   private JsonNode clusterInfo = mapper.createObjectNode();
   public String clusterVersion;
+  public int majorRevision;
+  public int minorRevision;
+  public int patchRevision;
+  private final boolean enableDebug;
 
   /**
    * Builder Class.
@@ -76,6 +82,7 @@ public final class CouchbaseConnect {
     private String clientCert;
     private Boolean sslMode = DEFAULT_SSL_MODE;
     private Boolean legacyAuth = false;
+    private Boolean enableDebug = false;
     private String bucketName;
     private int bucketReplicas = 1;
     private int ttlSeconds = 0;
@@ -142,6 +149,11 @@ public final class CouchbaseConnect {
       return this;
     }
 
+    public CouchbaseBuilder enableDebug(final Boolean mode) {
+      this.enableDebug = mode;
+      return this;
+    }
+
     public CouchbaseConnect build() {
       return new CouchbaseConnect(this);
     }
@@ -155,6 +167,7 @@ public final class CouchbaseConnect {
     rootCert = builder.rootCert;
     clientCert = builder.clientCert;
     legacyAuth = builder.legacyAuth;
+    enableDebug = builder.enableDebug;
     useSsl = builder.sslMode;
     ttlSeconds = builder.ttlSeconds;
     bucketName = builder.bucketName;
@@ -234,6 +247,9 @@ public final class CouchbaseConnect {
   private void getClusterInfo() {
     ClusterInfo clusterData = clusterManager.info();
     clusterVersion = clusterData.getMinVersion().toString();
+    majorRevision = Integer.parseInt(clusterVersion.split("\\.")[0]);
+    minorRevision = Integer.parseInt(clusterVersion.split("\\.")[1]);
+    patchRevision = Integer.parseInt(clusterVersion.split("\\.")[2]);
     try {
       clusterInfo = mapper.readTree(clusterData.raw().toString());
     } catch (JsonProcessingException e) {
@@ -248,7 +264,7 @@ public final class CouchbaseConnect {
   }
 
   public Boolean isBucket(String bucket) {
-    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(true);
+    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
     try {
       String endpoint = "pools/default/buckets";
       List<String> results = client.get(endpoint).validate().json().findValuesAsText("name");
@@ -387,6 +403,50 @@ public final class CouchbaseConnect {
             index.containsKey("condition") ? index.get("condition").toString() : "");
         result.add(i);
       }
+    }
+    return result;
+  }
+
+  public List<User> getUsers() {
+    if (majorRevision < 5) {
+      return new ArrayList<>();
+    }
+    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
+    List<User> result = new ArrayList<>();
+    try {
+      String endpoint = "settings/rbac/users";
+      JsonNode results = client.get(endpoint).validate().json();
+      for (JsonNode user : results) {
+        boolean local = user.has("domain") && user.get("domain").asText().equals("local");
+        if (local) {
+          result.add(new User(user));
+        }
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return result;
+  }
+
+  public List<Group> getGroups() {
+    if (majorRevision < 6) {
+      if (minorRevision < 5) {
+        return new ArrayList<>();
+      }
+    }
+    REST client = new REST(hostname, username, password, useSsl, adminPort);
+    List<Group> result = new ArrayList<>();
+    try {
+      String endpoint = "settings/rbac/groups";
+      JsonNode results = client.get(endpoint).validate().json();
+      for (JsonNode group : results) {
+        boolean ldap = group.has("ldap_group_ref") && !group.get("ldap_group_ref").isEmpty();
+        if (!ldap) {
+          result.add(new Group(group));
+        }
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
     return result;
   }

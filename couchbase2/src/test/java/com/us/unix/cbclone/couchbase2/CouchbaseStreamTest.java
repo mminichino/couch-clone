@@ -22,7 +22,7 @@ public class CouchbaseStreamTest {
   public static final String DEFAULT_BUCKET = "test";
 
   @ParameterizedTest
-  @ValueSource(strings = {"test.4.properties", "test.5.properties"})
+  @ValueSource(strings = {"test.4.properties", "test.5.properties", "test.6.properties"})
   public void testBucketExport(String propertyFile) {
     ClassLoader loader = Thread.currentThread().getContextClassLoader();
     Properties properties = new Properties();

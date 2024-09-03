@@ -1,4 +1,4 @@
-package com.us.unix.cbclone;
+package com.us.unix.cbclone.core;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

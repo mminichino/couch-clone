@@ -1,4 +1,4 @@
-package com.us.unix.cbclone;
+package com.us.unix.cbclone.core;
 
 import org.apache.commons.cli.*;
 
