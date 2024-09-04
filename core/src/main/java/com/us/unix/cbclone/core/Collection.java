@@ -1,11 +1,14 @@
 package com.us.unix.cbclone.core;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class Collection {
   public String name;
   public int ttl;
   public boolean history;
+  private final ObjectMapper mapper = new ObjectMapper();
 
   public Collection(String name, int ttl, boolean history) {
     this.name = name;
@@ -26,8 +29,21 @@ public class Collection {
   }
 
   public Collection(JsonNode data) {
-    this.name = data.has("name") ? data.get("name").asText() : "_default";
-    this.ttl = data.has("maxTTL") ? data.get("maxTTL").asInt() : 0;
-    this.history = data.has("history") && data.get("history").asBoolean();
+    this.name = data.get("name").asText();
+    this.ttl = data.get("maxTTL").asInt();
+    this.history = data.get("history").asBoolean();
+  }
+
+  public JsonNode toJson() {
+    ObjectNode node = mapper.createObjectNode();
+    node.put("name", name);
+    node.put("maxTTL", ttl);
+    node.put("history", history);
+    return node;
+  }
+
+  @Override
+  public String toString() {
+    return toJson().toString();
   }
 }
