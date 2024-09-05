@@ -44,7 +44,7 @@ public class FileReader {
     }
   }
 
-  private String readLine() {
+  public String readLine() {
     try {
       reader.mark(1);
       return reader.readLine();
@@ -53,7 +53,7 @@ public class FileReader {
     }
   }
 
-  private void resetLine() {
+  public void resetLine() {
     try {
       reader.reset();
     } catch (IOException e) {
@@ -160,10 +160,15 @@ public class FileReader {
     return groups;
   }
 
-  public void startDataStream() {
+  public String startDataStream() {
     String header = readLine();
-    if (!header.equals("__DATA__")) {
+    if (header == null) {
+      return null;
+    }
+    if (!header.startsWith("__DATA__")) {
       throw new RuntimeException("File format error, data marker not found");
     }
+    String[] parts = header.split(":");
+    return parts[1];
   }
 }

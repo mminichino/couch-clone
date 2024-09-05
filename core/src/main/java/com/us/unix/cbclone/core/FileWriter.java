@@ -153,8 +153,8 @@ public class FileWriter {
     }
   }
 
-  public void startDataStream() {
-    String label = "__DATA__";
+  public void startDataStream(String table) {
+    String label = "__DATA__:" + table;
     byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {

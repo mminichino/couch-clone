@@ -26,35 +26,38 @@ public class FileWriterTest {
   }
 
   public List<Table> generateDbTables() {
+    List<Table> tables = new ArrayList<>();
     List<Column> columns = new ArrayList<>();
     columns.add(new Column("name", DataType.STRING));
-    Table table = new Table("data", 256, columns);
-    return new ArrayList<>() {{
-      add(table);
-    }};
+    columns.add(new Column("address", DataType.STRING));
+    Table table = new Table("customers", 256, columns);
+    tables.add(table);
+    columns = new ArrayList<>();
+    columns.add(new Column("sku", DataType.STRING));
+    columns.add(new Column("price", DataType.FLOAT));
+    table = new Table("inventory", 256, columns);
+    tables.add(table);
+    return tables;
   }
 
   public List<Table> generateCbTables() {
-    List<Scope> scopes = new ArrayList<>();
-    Scope scope = new Scope("data");
-    scope.addCollection(new Collection("orders", 0));
-    scope.addCollection(new Collection("customers", 0));
-    scopes.add(scope);
-    Table table = new Table(getTestJson("bucket.json"), scopes);
-    return new ArrayList<>() {{
-      add(table);
-    }};
+    List<Table> tables = new ArrayList<>();
+    Table table = new Table(getTestJson("bucket.json"), "data", "orders");
+    tables.add(table);
+    table = new Table(getTestJson("bucket.json"), "data", "customers");
+    tables.add(table);
+    return tables;
   }
 
   public List<Index> generateDbIndexes() {
-    Index index = new Index("name", "data");
+    Index index = new Index("name", "customers");
     return new ArrayList<>() {{
       add(index);
     }};
   }
 
   public List<Index> generateCbIndexes() {
-    Index index = new Index("name", "data", "data_name_ix");
+    Index index = new Index("name", "appdata.data.customers", "customers_idx");
     return new ArrayList<>() {{
       add(index);
     }};
@@ -135,13 +138,16 @@ public class FileWriterTest {
   public void testFileWriterDB() {
     FileWriter file = new FileWriter("rdbms", true);
     file.writeHeader();
-    file.writeTables(generateDbTables());
+    List<Table> tables = generateDbTables();
+    file.writeTables(tables);
     file.writeIndexes(generateDbIndexes());
     file.writeUsers(generateDbUsers());
     file.writeGroups(generateDbGroups());
-    file.startDataStream();
-    Writer writer = file.getWriter();
-    generateDbData(writer);
+    for (Table table : tables) {
+      file.startDataStream(table.name);
+      Writer writer = file.getWriter();
+      generateDbData(writer);
+    }
     file.close();
   }
 
@@ -149,13 +155,16 @@ public class FileWriterTest {
   public void testFileWriterCB() {
     FileWriter file = new FileWriter("couchbase", true);
     file.writeHeader();
-    file.writeTables(generateCbTables());
+    List<Table> tables = generateCbTables();
+    file.writeTables(tables);
     file.writeIndexes(generateCbIndexes());
     file.writeUsers(generateCbUsers());
     file.writeGroups(generateCbGroups());
-    file.startDataStream();
-    Writer writer = file.getWriter();
-    generateCbData(writer);
+    for (Table table : tables) {
+      file.startDataStream(table.name);
+      Writer writer = file.getWriter();
+      generateCbData(writer);
+    }
     file.close();
   }
 }

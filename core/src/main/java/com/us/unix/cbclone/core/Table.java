@@ -16,7 +16,10 @@ public class Table {
   public TableType type;
   public JsonNode bucket;
   public List<Column> columns;
-  public List<Scope> scopes;
+  public String password;
+  public String scope = "_default";
+  public String collection = "_default";
+  public int ttl = 0;
   private final ObjectMapper mapper = new ObjectMapper();
 
   public Table(String name, long size, List<Column> columns) {
@@ -26,7 +29,6 @@ public class Table {
     this.type = TableType.RDBMS;
     this.columns = columns;
     this.bucket = mapper.createObjectNode();
-    this.scopes = new ArrayList<>();
   }
 
   public Table(String name, long size, TableType type) {
@@ -36,20 +38,19 @@ public class Table {
     this.type = type;
     this.columns = new ArrayList<>();
     this.bucket = mapper.createObjectNode();
-    this.scopes = new ArrayList<>();
   }
 
-  public Table(String name, long size, TableType type, List<Scope> scopes) {
+  public Table(String name, long size, TableType type, String scope) {
     this.name = name;
     this.size = size;
     this.rows = 0L;
     this.type = type;
     this.columns = new ArrayList<>();
-    this.bucket = mapper.createObjectNode();;
-    this.scopes = scopes;
+    this.bucket = mapper.createObjectNode();
+    this.scope = scope;
   }
 
-  public Table(JsonNode bucketJson, List<Scope> scopes) {
+  public Table(JsonNode bucketJson, String scope, String collection) {
     String name = bucketJson.get("name").asText();
     String type = bucketJson.get("bucketType").asText();
     int quota = bucketJson.get("quota").get("ram").asInt() / 1048576;
@@ -58,6 +59,7 @@ public class Table {
     int ttl = bucketJson.has("maxTTL") ? bucketJson.get("maxTTL").asInt() : 0;
     String storage = bucketJson.has("storageBackend") ? bucketJson.get("storageBackend").asText() : "couchstore";
     String resolution = bucketJson.has("conflictResolutionType") ? bucketJson.get("conflictResolutionType").asText() : "seqno";
+    String password = bucketJson.has("saslPassword") ? bucketJson.get("saslPassword").asText() : "";
 
     ObjectNode bucket = mapper.createObjectNode();
     bucket.put("name", name);
@@ -68,14 +70,18 @@ public class Table {
     bucket.put("ttl", ttl);
     bucket.put("storage", storage);
     bucket.put("resolution", resolution);
+    bucket.put("password", password);
 
-    this.name = name;
+    this.name = collection.equals("_default") ? name : name + "." + scope + "." + collection;
     this.size = quota;
     this.rows = 0L;
     this.type = TableType.COUCHBASE;
     this.columns = new ArrayList<>();
     this.bucket = bucket;
-    this.scopes = scopes;
+    this.scope = scope;
+    this.collection = collection;
+    this.ttl = ttl;
+    this.password = password;
   }
 
   public Table(JsonNode data) {
@@ -85,7 +91,19 @@ public class Table {
     this.type = TableType.valueOf(data.get("type").asText());
     this.bucket = data.get("bucket");
     this.columns = getColumnList(data.get("columns"));
-    this.scopes = getScopeList(data.get("scopes"));
+    this.scope = data.get("scope").asText();
+    this.collection = data.get("collection").asText();
+    this.ttl = data.get("ttl").asInt();
+    this.password = data.get("password").asText();
+  }
+
+  public static Table inList(List<Table> tables, String name) {
+    for (Table t : tables) {
+      if (t.name.equals(name)) {
+        return t;
+      }
+    }
+    return null;
   }
 
   private List<Column> getColumnList(JsonNode data) {
@@ -93,15 +111,6 @@ public class Table {
     List<Column> items = new ArrayList<>();
     while(elements.hasNext()){
       items.add(new Column(elements.next()));
-    }
-    return items;
-  }
-
-  private List<Scope> getScopeList(JsonNode data) {
-    Iterator<JsonNode> elements = data.elements();
-    List<Scope> items = new ArrayList<>();
-    while(elements.hasNext()){
-      items.add(new Scope(elements.next()));
     }
     return items;
   }
@@ -114,14 +123,6 @@ public class Table {
     return array;
   }
 
-  private ArrayNode getScopeArray(List<Scope> scopes) {
-    ArrayNode array = mapper.createArrayNode();
-    for (Scope s : scopes) {
-      array.add(s.toJson());
-    }
-    return array;
-  }
-
   public JsonNode toJson() {
     ObjectNode table = mapper.createObjectNode();
     table.put("name", name);
@@ -130,7 +131,10 @@ public class Table {
     table.put("type", type.toString());
     table.set("bucket", bucket);
     table.set("columns", getColumnArray(columns));
-    table.set("scopes", getScopeArray(scopes));
+    table.put("scope", scope);
+    table.put("collection", collection);
+    table.put("ttl", ttl);
+    table.put("password", password);
     return table;
   }
 

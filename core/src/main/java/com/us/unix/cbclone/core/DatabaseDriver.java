@@ -5,19 +5,26 @@ import java.io.Writer;
 import java.util.List;
 import java.util.Properties;
 
-public abstract class DBDriver {
+public abstract class DatabaseDriver {
   private final Properties properties = new Properties();
   public FileWriter writer;
   public FileReader reader;
   public String session = "dbdump";
   public boolean overwrite = false;
+  public List<Table> tables;
+  public String tableName;
 
   public Properties getProperties() {
     return properties;
   }
 
-  public void init() {
-    this.initDb();
+  public void setTableName(String tableName) {
+    this.tableName = tableName;
+  }
+
+  public void init(Properties properties) {
+    this.properties.putAll(properties);
+    this.initDb(this.properties);
     this.writer = new FileWriter(session, overwrite);
   }
 
@@ -26,7 +33,8 @@ public abstract class DBDriver {
   }
 
   public void writeTables() {
-    this.writer.writeTables(exportTables());
+    tables = exportTables();
+    this.writer.writeTables(tables);
   }
 
   public void writeIndexes() {
@@ -42,9 +50,14 @@ public abstract class DBDriver {
   }
 
   public void writeData() {
-    this.writer.startDataStream();
-    Writer writer = this.writer.getWriter();
-    exportData(writer);
+    for (Table table : tables) {
+      if (tableName != null && !tableName.equals(table.name)) {
+        continue;
+      }
+      this.writer.startDataStream(table.name);
+      Writer writer = this.writer.getWriter();
+      exportData(writer, table);
+    }
   }
 
   public void readHeader() {
@@ -68,9 +81,14 @@ public abstract class DBDriver {
   }
 
   public void readData() {
-    this.reader.startDataStream();
-    BufferedReader reader = this.reader.getReader();
-    importData(reader);
+    for (String tableName = this.reader.startDataStream(); tableName != null; tableName = this.reader.startDataStream()) {
+      Table table = Table.inList(tables, tableName);
+      if (table == null) {
+        throw new RuntimeException("Table not found: " + tableName);
+      }
+      importData(this.reader, table);
+      this.reader.resetLine();
+    }
   }
 
   public void shutdown() {
@@ -95,7 +113,9 @@ public abstract class DBDriver {
     readData();
   }
 
-  public abstract void initDb();
+  public abstract void initDb(Properties properties);
+
+  public abstract void connectToTable(Table table);
 
   public abstract List<Table> exportTables();
 
@@ -105,7 +125,7 @@ public abstract class DBDriver {
 
   public abstract List<Group> exportGroups();
 
-  public abstract void exportData(Writer writer);
+  public abstract void exportData(Writer writer, Table table);
 
   public abstract void importTables(List<Table> tables);
 
@@ -115,5 +135,5 @@ public abstract class DBDriver {
 
   public abstract void importGroups(List<Group> groups);
 
-  public abstract void importData(BufferedReader reader);
+  public abstract void importData(FileReader reader, Table table);
 }

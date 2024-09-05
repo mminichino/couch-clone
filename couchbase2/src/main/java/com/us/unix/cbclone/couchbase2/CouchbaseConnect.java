@@ -212,6 +212,14 @@ public final class CouchbaseConnect {
     clusterInfo = mapper.createObjectNode();
   }
 
+  public CouchbaseStream stream(String bucketName) {
+    return new CouchbaseStream(hostname, username, password, bucketName, true);
+  }
+
+  public CouchbaseStream stream(String bucketName, String bucketPassword) {
+    return new CouchbaseStream(hostname, bucketPassword, bucketName, true);
+  }
+
   public String hostValue() {
     return hostname;
   }
@@ -415,7 +423,7 @@ public final class CouchbaseConnect {
       try {
         String endpoint = "pools/default/buckets/" + bucket;
         JsonNode data = client.get(endpoint).validate().json();
-        result.add(new Table(data, new ArrayList<>()));
+        result.add(new Table(data, "_default", "_default"));
       } catch (Exception e) {
         throw new RuntimeException(e);
       }

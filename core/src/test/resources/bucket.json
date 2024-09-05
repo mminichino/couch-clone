@@ -1,5 +1,5 @@
 {
-  "name": "travel-sample",
+  "name": "appdata",
   "nodeLocator": "vbucket",
   "bucketType": "membase",
   "storageBackend": "couchstore",
