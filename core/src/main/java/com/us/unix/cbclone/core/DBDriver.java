@@ -1,13 +1,14 @@
 package com.us.unix.cbclone.core;
 
+import java.io.BufferedReader;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
 public abstract class DBDriver {
   private final Properties properties = new Properties();
-  public FileWriter file;
+  public FileWriter writer;
+  public FileReader reader;
   public String session = "dbdump";
   public boolean overwrite = false;
 
@@ -17,37 +18,63 @@ public abstract class DBDriver {
 
   public void init() {
     this.initDb();
-    this.file = new FileWriter(session, overwrite);
+    this.writer = new FileWriter(session, overwrite);
   }
 
   public void writeHeader() {
-    this.file.writeHeader();
+    this.writer.writeHeader();
   }
 
   public void writeTables() {
-    this.file.writeTables(exportTables());
+    this.writer.writeTables(exportTables());
   }
 
   public void writeIndexes() {
-    this.file.writeIndexes(exportIndexes());
+    this.writer.writeIndexes(exportIndexes());
   }
 
   public void writeUsers() {
-    this.file.writeUsers(exportUsers());
+    this.writer.writeUsers(exportUsers());
   }
 
   public void writeGroups() {
-    this.file.writeGroups(exportGroups());
+    this.writer.writeGroups(exportGroups());
   }
 
   public void writeData() {
-    this.file.startDataStream();
-    Writer writer = this.file.getWriter();
+    this.writer.startDataStream();
+    Writer writer = this.writer.getWriter();
     exportData(writer);
   }
 
+  public void readHeader() {
+    this.reader.readHeader();
+  }
+
+  public void readTables() {
+    importTables(this.reader.readTables());
+  }
+
+  public void readIndexes() {
+    importIndexes(this.reader.readIndexes());
+  }
+
+  public void readUsers() {
+    importUsers(this.reader.readUsers());
+  }
+
+  public void readGroups() {
+    importGroups(this.reader.readGroups());
+  }
+
+  public void readData() {
+    this.reader.startDataStream();
+    BufferedReader reader = this.reader.getReader();
+    importData(reader);
+  }
+
   public void shutdown() {
-    this.file.close();
+    this.writer.close();
   }
 
   public void exportDatabase() {
@@ -57,6 +84,15 @@ public abstract class DBDriver {
     writeUsers();
     writeGroups();
     writeData();
+  }
+
+  public void importDatabase() {
+    readHeader();
+    readTables();
+    readIndexes();
+    readUsers();
+    readGroups();
+    readData();
   }
 
   public abstract void initDb();
@@ -70,4 +106,14 @@ public abstract class DBDriver {
   public abstract List<Group> exportGroups();
 
   public abstract void exportData(Writer writer);
+
+  public abstract void importTables(List<Table> tables);
+
+  public abstract void importIndexes(List<Index> indexes);
+
+  public abstract void importUsers(List<User> users);
+
+  public abstract void importGroups(List<Group> groups);
+
+  public abstract void importData(BufferedReader reader);
 }
