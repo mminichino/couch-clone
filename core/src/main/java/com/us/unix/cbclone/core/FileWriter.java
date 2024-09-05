@@ -19,7 +19,6 @@ public class FileWriter {
   private final SimpleDateFormat timeStampFormat = new SimpleDateFormat(dateStampFormat);
   private final Date date = new Date();
   private final ObjectMapper mapper = new ObjectMapper();
-  private final byte[] FORM_FEED = "\u000C".getBytes();
 
   public FileWriter(String filename) {
     this.filename = FileNameFormat.getFileAbsPath(filename, false);
@@ -79,7 +78,6 @@ public class FileWriter {
 
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(FORM_FEED);
       outputStream.write(bytes);
       writeLine(outputStream.toString(StandardCharsets.UTF_8));
       ObjectNode node = mapper.createObjectNode();
@@ -97,7 +95,6 @@ public class FileWriter {
 
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(FORM_FEED);
       outputStream.write(bytes);
       writeLine(outputStream.toString(StandardCharsets.UTF_8));
       for (Table table : tables) {
@@ -114,7 +111,6 @@ public class FileWriter {
 
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(FORM_FEED);
       outputStream.write(bytes);
       writeLine(outputStream.toString(StandardCharsets.UTF_8));
       for (Index index : indexes) {
@@ -131,7 +127,6 @@ public class FileWriter {
 
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(FORM_FEED);
       outputStream.write(bytes);
       writeLine(outputStream.toString(StandardCharsets.UTF_8));
       for (User user : users) {
@@ -148,7 +143,6 @@ public class FileWriter {
 
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(FORM_FEED);
       outputStream.write(bytes);
       writeLine(outputStream.toString(StandardCharsets.UTF_8));
       for (Group group : groups) {
@@ -164,7 +158,6 @@ public class FileWriter {
     byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(FORM_FEED);
       outputStream.write(bytes);
       writeLine(outputStream.toString(StandardCharsets.UTF_8));
     } catch (IOException e) {

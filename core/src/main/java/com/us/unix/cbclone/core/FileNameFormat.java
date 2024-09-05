@@ -46,4 +46,27 @@ public class FileNameFormat {
 
     return file.getAbsolutePath();
   }
+
+  public static String readFileAbsPath(String filename) {
+    filename = FilenameUtils.normalize(filename);
+    File file = new File(filename);
+
+    if (!FilenameUtils.isExtension(filename, "gz")) {
+      filename = filename + ".gz";
+      file = new File(filename);
+    }
+
+    if (!file.isAbsolute()) {
+      String homeDirectory = System.getProperty("user.home");
+      String pathPrefix = FilenameUtils.concat(homeDirectory, "cbclone");
+      filename = FilenameUtils.concat(pathPrefix, filename);
+      file = new File(filename);
+    }
+
+    if (!file.exists()) {
+     throw new RuntimeException(String.format("File %s does not exist", file.getAbsolutePath()));
+    }
+
+    return file.getAbsolutePath();
+  }
 }
