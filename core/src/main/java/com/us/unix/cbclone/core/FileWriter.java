@@ -60,6 +60,10 @@ public class FileWriter {
     }
   }
 
+  public Writer getWriter() {
+    return writer;
+  }
+
   public void close() {
     try {
       writer.close();
@@ -99,6 +103,70 @@ public class FileWriter {
       for (Table table : tables) {
         writeLine(table.toString());
       }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void writeIndexes(List<Index> indexes) {
+    String label = "__INDEXES__";
+    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    try {
+      outputStream.write(FORM_FEED);
+      outputStream.write(bytes);
+      writeLine(outputStream.toString(StandardCharsets.UTF_8));
+      for (Index index : indexes) {
+        writeLine(index.toString());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void writeUsers(List<User> users) {
+    String label = "__USERS__";
+    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    try {
+      outputStream.write(FORM_FEED);
+      outputStream.write(bytes);
+      writeLine(outputStream.toString(StandardCharsets.UTF_8));
+      for (User user : users) {
+        writeLine(user.toString());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void writeGroups(List<Group> groups) {
+    String label = "__GROUPS__";
+    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    try {
+      outputStream.write(FORM_FEED);
+      outputStream.write(bytes);
+      writeLine(outputStream.toString(StandardCharsets.UTF_8));
+      for (Group group : groups) {
+        writeLine(group.toString());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public void startDataStream() {
+    String label = "__DATA__";
+    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    try {
+      outputStream.write(FORM_FEED);
+      outputStream.write(bytes);
+      writeLine(outputStream.toString(StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

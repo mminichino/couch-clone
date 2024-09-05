@@ -10,6 +10,7 @@ public class Index {
   public String name;
   public String condition;
   public boolean isPrimary = false;
+  private final ObjectMapper mapper = new ObjectMapper();
 
   public Index(String column, String table, String name, String condition) {
     this.column = column.replace("`", "");
@@ -40,6 +41,14 @@ public class Index {
     this.isPrimary = true;
   }
 
+  public Index(JsonNode data) {
+    this.column = data.get("column").asText();
+    this.table = data.get("table").asText();
+    this.name = data.get("name").asText();
+    this.condition = data.get("condition").asText();
+    this.isPrimary = data.get("isPrimary").asBoolean();
+  }
+
   public String getColumn() {
     return column;
   }
@@ -60,8 +69,7 @@ public class Index {
     return isPrimary;
   }
 
-  public JsonNode json() {
-    ObjectMapper mapper = new ObjectMapper();
+  public JsonNode toJson() {
     ObjectNode data = mapper.createObjectNode();
     data.put("column", column);
     data.put("table", table);
@@ -69,5 +77,10 @@ public class Index {
     data.put("condition", condition);
     data.put("isPrimary", isPrimary);
     return data;
+  }
+
+  @Override
+  public String toString() {
+    return toJson().toString();
   }
 }

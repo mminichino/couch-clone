@@ -1,0 +1,12 @@
+{
+  "role": "admin",
+  "origins": [
+    {
+      "type": "group",
+      "name": "devgroup"
+    },
+    {
+      "type": "user"
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 package com.us.unix.cbclone.core;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -10,6 +12,7 @@ public class Group {
   public String groupname;
   public String description;
   public List<JsonNode> roles;
+  private final ObjectMapper mapper = new ObjectMapper();
 
   public Group(String groupname, String description, List<JsonNode> roles) {
     this.groupname = groupname;
@@ -30,17 +33,30 @@ public class Group {
   }
 
   public Group(JsonNode data) {
-    this.groupname = data.has("id") ? data.get("id").asText() : null;
-    this.description = data.has("description") ? data.get("description").asText() : null;
-    this.roles = data.has("roles") ? getObjectList(data.get("roles")) : new ArrayList<>();
+    this.groupname = data.get("id").asText();
+    this.description = data.get("description").asText();
+    this.roles = getRoleList(data.get("roles"));
   }
 
-  private List<JsonNode> getObjectList(JsonNode data) {
+  private List<JsonNode> getRoleList(JsonNode data) {
     Iterator<JsonNode> elements = data.elements();
     List<JsonNode> items = new ArrayList<>();
     while(elements.hasNext()){
       items.add(elements.next());
     }
     return items;
+  }
+
+  public JsonNode toJson() {
+    ObjectNode node = mapper.createObjectNode();
+    node.put("id", groupname);
+    node.put("description", description);
+    node.set("roles", mapper.valueToTree(roles));
+    return node;
+  }
+
+  @Override
+  public String toString() {
+    return toJson().toString();
   }
 }

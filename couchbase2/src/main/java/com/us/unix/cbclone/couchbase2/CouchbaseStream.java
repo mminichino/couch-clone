@@ -119,6 +119,19 @@ public class CouchbaseStream {
     }
   }
 
+  public void toWriter(Writer writer) {
+    streamDocuments();
+    startToNow();
+    streamData().forEach(record -> {
+      try {
+        writer.write(record + "\n");
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    });
+    stop();
+  }
+
   public void streamDocuments() {
     client.dataEventHandler((flowController, event) -> {
       if (DcpMutationMessage.is(event)) {
