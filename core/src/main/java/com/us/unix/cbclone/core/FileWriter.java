@@ -73,81 +73,76 @@ public class FileWriter {
 
   public void writeHeader() {
     String label = "__HEADER__";
-    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+    String footer = "__END__";
     String timeStamp = timeStampFormat.format(date);
 
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(bytes);
-      writeLine(outputStream.toString(StandardCharsets.UTF_8));
+      writeLine(label);
       ObjectNode node = mapper.createObjectNode();
       node.put("version", getVersion());
       node.put("timestamp", timeStamp);
       writeLine(mapper.writeValueAsString(node));
+      writeLine(footer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  public void writeTables(List<Table> tables) {
+  public void writeTables(List<TableData> tables) {
     String label = "__TABLES__";
-    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+    String footer = "__END__";
 
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(bytes);
-      writeLine(outputStream.toString(StandardCharsets.UTF_8));
-      for (Table table : tables) {
-        writeLine(table.toString());
+      writeLine(label);
+      for (TableData table : tables) {
+        writeLine(mapper.writeValueAsString(table));
       }
+      writeLine(footer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  public void writeIndexes(List<Index> indexes) {
+  public void writeIndexes(List<IndexData> indexes) {
     String label = "__INDEXES__";
-    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+    String footer = "__END__";
 
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(bytes);
-      writeLine(outputStream.toString(StandardCharsets.UTF_8));
-      for (Index index : indexes) {
-        writeLine(index.toString());
+      writeLine(label);
+      for (IndexData index : indexes) {
+        writeLine(mapper.writeValueAsString(index));
       }
+      writeLine(footer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  public void writeUsers(List<User> users) {
+  public void writeUsers(List<UserData> users) {
     String label = "__USERS__";
-    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+    String footer = "__END__";
 
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(bytes);
-      writeLine(outputStream.toString(StandardCharsets.UTF_8));
-      for (User user : users) {
-        writeLine(user.toString());
+      writeLine(label);
+      for (UserData user : users) {
+        writeLine(mapper.writeValueAsString(user));
       }
+      writeLine(footer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  public void writeGroups(List<Group> groups) {
+  public void writeGroups(List<GroupData> groups) {
     String label = "__GROUPS__";
-    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
+    String footer = "__END__";
 
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     try {
-      outputStream.write(bytes);
-      writeLine(outputStream.toString(StandardCharsets.UTF_8));
-      for (Group group : groups) {
-        writeLine(group.toString());
+      writeLine(label);
+      for (GroupData group : groups) {
+        writeLine(mapper.writeValueAsString(group));
       }
+      writeLine(footer);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -155,13 +150,11 @@ public class FileWriter {
 
   public void startDataStream(String table) {
     String label = "__DATA__:" + table;
-    byte[] bytes = label.getBytes(StandardCharsets.UTF_8);
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    try {
-      outputStream.write(bytes);
-      writeLine(outputStream.toString(StandardCharsets.UTF_8));
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    writeLine(label);
+  }
+
+  public void endDataStream() {
+    String label = "__END__";
+    writeLine(label);
   }
 }

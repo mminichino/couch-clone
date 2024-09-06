@@ -11,7 +11,7 @@ public abstract class DatabaseDriver {
   public FileReader reader;
   public String session = "dbdump";
   public boolean overwrite = false;
-  public List<Table> tables;
+  public List<TableData> tables;
   public String tableName;
 
   public Properties getProperties() {
@@ -50,11 +50,11 @@ public abstract class DatabaseDriver {
   }
 
   public void writeData() {
-    for (Table table : tables) {
-      if (tableName != null && !tableName.equals(table.name)) {
+    for (TableData table : tables) {
+      if (tableName != null && !tableName.equals(table.getName())) {
         continue;
       }
-      this.writer.startDataStream(table.name);
+      this.writer.startDataStream(table.getName());
       Writer writer = this.writer.getWriter();
       exportData(writer, table);
     }
@@ -82,12 +82,11 @@ public abstract class DatabaseDriver {
 
   public void readData() {
     for (String tableName = this.reader.startDataStream(); tableName != null; tableName = this.reader.startDataStream()) {
-      Table table = Table.inList(tables, tableName);
+      TableData table = TableData.inList(tables, tableName);
       if (table == null) {
         throw new RuntimeException("Table not found: " + tableName);
       }
       importData(this.reader, table);
-      this.reader.resetLine();
     }
   }
 
@@ -115,25 +114,25 @@ public abstract class DatabaseDriver {
 
   public abstract void initDb(Properties properties);
 
-  public abstract void connectToTable(Table table);
+  public abstract void connectToTable(TableData table);
 
-  public abstract List<Table> exportTables();
+  public abstract List<TableData> exportTables();
 
-  public abstract List<Index> exportIndexes();
+  public abstract List<IndexData> exportIndexes();
 
-  public abstract List<User> exportUsers();
+  public abstract List<UserData> exportUsers();
 
-  public abstract List<Group> exportGroups();
+  public abstract List<GroupData> exportGroups();
 
-  public abstract void exportData(Writer writer, Table table);
+  public abstract void exportData(Writer writer, TableData table);
 
-  public abstract void importTables(List<Table> tables);
+  public abstract void importTables(List<TableData> tables);
 
-  public abstract void importIndexes(List<Index> indexes);
+  public abstract void importIndexes(List<IndexData> indexes);
 
-  public abstract void importUsers(List<User> users);
+  public abstract void importUsers(List<UserData> users);
 
-  public abstract void importGroups(List<Group> groups);
+  public abstract void importGroups(List<GroupData> groups);
 
-  public abstract void importData(FileReader reader, Table table);
+  public abstract void importData(FileReader reader, TableData table);
 }

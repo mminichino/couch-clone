@@ -25,76 +25,156 @@ public class FileWriterTest {
     }
   }
 
-  public List<Table> generateDbTables() {
-    List<Table> tables = new ArrayList<>();
-    List<Column> columns = new ArrayList<>();
-    columns.add(new Column("name", DataType.STRING));
-    columns.add(new Column("address", DataType.STRING));
-    Table table = new Table("customers", 256, columns);
+  public List<TableData> generateDbTables() {
+    List<TableData> tables = new ArrayList<>();
+    List<ColumnData> columns = new ArrayList<>();
+
+    ColumnData name = new ColumnData();
+    name.setName("name");
+    name.setType(DataType.STRING);
+    ColumnData address = new ColumnData();
+    address.setName("address");
+    address.setType(DataType.STRING);
+    columns.add(name);
+    columns.add(address);
+    TableData table = new TableData();
+    table.setName("customers");
+    table.setSize(256);
+    table.setColumns(columns);
     tables.add(table);
+
     columns = new ArrayList<>();
-    columns.add(new Column("sku", DataType.STRING));
-    columns.add(new Column("price", DataType.FLOAT));
-    table = new Table("inventory", 256, columns);
+    ColumnData sku = new ColumnData();
+    sku.setName("name");
+    sku.setType(DataType.STRING);
+    ColumnData price = new ColumnData();
+    price.setName("address");
+    price.setType(DataType.STRING);
+    columns.add(sku);
+    columns.add(price);
+    table = new TableData();
+    table.setName("inventory");
+    table.setSize(256);
+    table.setColumns(columns);
     tables.add(table);
+
     return tables;
   }
 
-  public List<Table> generateCbTables() {
-    List<Table> tables = new ArrayList<>();
-    Table table = new Table(getTestJson("bucket.json"), "data", "orders");
-    tables.add(table);
-    table = new Table(getTestJson("bucket.json"), "data", "customers");
-    tables.add(table);
+  public List<TableData> generateCbTables() {
+    List<TableData> tables = new ArrayList<>();
+    JsonNode bucketJson = getTestJson("bucket.json");
+    String name = bucketJson.get("name").asText();
+    String type = bucketJson.get("bucketType").asText();
+    int quota = bucketJson.get("quota").get("ram").asInt() / 1048576;
+    int replicas = bucketJson.get("replicaNumber").asInt();
+    String eviction = bucketJson.get("evictionPolicy").asText();
+    int ttl = bucketJson.has("maxTTL") ? bucketJson.get("maxTTL").asInt() : 0;
+    String storage = bucketJson.has("storageBackend") ? bucketJson.get("storageBackend").asText() : "couchstore";
+    String resolution = bucketJson.has("conflictResolutionType") ? bucketJson.get("conflictResolutionType").asText() : "seqno";
+    String password = bucketJson.has("saslPassword") ? bucketJson.get("saslPassword").asText() : "";
+
+    BucketData b = new BucketData();
+    b.setName(name);
+    b.setType(type);
+    b.setQuota(quota);
+    b.setReplicas(replicas);
+    b.setEviction(eviction);
+    b.setTtl(ttl);
+    b.setStorage(storage);
+    b.setResolution(resolution);
+    b.setPassword(password);
+
+    TableData t = new TableData();
+    t.setName("appdata.data.orders");
+    t.setSize(quota);
+    t.setType(TableType.COUCHBASE);
+    t.setBucket(b);
+    ScopeData s = new ScopeData();
+    s.setName("data");
+    CollectionData c = new CollectionData();
+    c.setName("orders");
+    t.setScope(s);
+    t.setCollection(c);
+    tables.add(t);
+
+    t = new TableData();
+    t.setName("appdata.data.customers");
+    t.setSize(quota);
+    t.setType(TableType.COUCHBASE);
+    t.setBucket(b);
+    s = new ScopeData();
+    s.setName("data");
+    c = new CollectionData();
+    c.setName("customers");
+    t.setScope(s);
+    t.setCollection(c);
+    tables.add(t);
+
     return tables;
   }
 
-  public List<Index> generateDbIndexes() {
-    Index index = new Index("name", "customers");
+  public List<IndexData> generateDbIndexes() {
+    IndexData index = new IndexData();
+    index.setColumn("name");
+    index.setTable("customers");
     return new ArrayList<>() {{
       add(index);
     }};
   }
 
-  public List<Index> generateCbIndexes() {
-    Index index = new Index("name", "appdata.data.customers", "customers_idx");
+  public List<IndexData> generateCbIndexes() {
+    IndexData index = new IndexData();
+    index.setColumn("name");
+    index.setTable("appdata.data.customers");
+    index.setName("customers_idx");
     return new ArrayList<>() {{
       add(index);
     }};
   }
 
-  public List<User> generateDbUsers() {
-    User user = new User("dbuser");
+  public List<UserData> generateDbUsers() {
+    UserData user = new UserData();
+    user.setId("dbuser");
     return new ArrayList<>() {{
       add(user);
     }};
   }
 
-  public List<User> generateCbUsers() {
+  public List<UserData> generateCbUsers() {
     List<String> groups = new ArrayList<>();
     groups.add("devgroup");
-    List<JsonNode> roles = new ArrayList<>();
-    roles.add(getTestJson("role.json"));
-
-    User user = new User("developer", null, "Dev User", null, groups, roles);
+    List<RoleData> roles = new ArrayList<>();
+    RoleData role = new RoleData();
+    role.setRole("admin");
+    roles.add(role);
+    UserData user = new UserData();
+    user.setId("developer");
+    user.setName("Dev User");
+    user.setGroups(groups);
+    user.setRoles(roles);
     return new ArrayList<>() {{
       add(user);
     }};
   }
 
-  public List<Group> generateDbGroups() {
-    Group group = new Group("sysdba");
+  public List<GroupData> generateDbGroups() {
+    GroupData group = new GroupData();
+    group.setId("sysdba");
     return new ArrayList<>() {{
       add(group);
     }};
   }
 
-  public List<Group> generateCbGroups() {
-    List<JsonNode> roles = new ArrayList<>();
-    ObjectNode role = mapper.createObjectNode();
-    role.put("role", "admin");
+  public List<GroupData> generateCbGroups() {
+    List<RoleData> roles = new ArrayList<>();
+    RoleData role = new RoleData();
+    role.setRole("admin");
     roles.add(role);
-    Group group = new Group("devgroup", "Dev Group", roles);
+    GroupData group = new GroupData();
+    group.setId("devgroup");
+    group.setDescription("Dev Group");
+    group.setRoles(roles);
     return new ArrayList<>() {{
       add(group);
     }};
@@ -138,15 +218,16 @@ public class FileWriterTest {
   public void testFileWriterDB() {
     FileWriter file = new FileWriter("rdbms", true);
     file.writeHeader();
-    List<Table> tables = generateDbTables();
+    List<TableData> tables = generateDbTables();
     file.writeTables(tables);
     file.writeIndexes(generateDbIndexes());
     file.writeUsers(generateDbUsers());
     file.writeGroups(generateDbGroups());
-    for (Table table : tables) {
-      file.startDataStream(table.name);
+    for (TableData table : tables) {
+      file.startDataStream(table.getName());
       Writer writer = file.getWriter();
       generateDbData(writer);
+      file.endDataStream();
     }
     file.close();
   }
@@ -155,15 +236,16 @@ public class FileWriterTest {
   public void testFileWriterCB() {
     FileWriter file = new FileWriter("couchbase", true);
     file.writeHeader();
-    List<Table> tables = generateCbTables();
+    List<TableData> tables = generateCbTables();
     file.writeTables(tables);
     file.writeIndexes(generateCbIndexes());
     file.writeUsers(generateCbUsers());
     file.writeGroups(generateCbGroups());
-    for (Table table : tables) {
-      file.startDataStream(table.name);
+    for (TableData table : tables) {
+      file.startDataStream(table.getName());
       Writer writer = file.getWriter();
       generateCbData(writer);
+      file.endDataStream();
     }
     file.close();
   }

@@ -19,7 +19,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.us.unix.cbclone.core.*;
-import com.us.unix.cbclone.core.Index;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
@@ -396,34 +395,55 @@ public final class CouchbaseConnect {
     return data;
   }
 
-  public List<Index> getIndexes() {
+  public List<IndexData> getIndexes() {
     List<JsonObject> indexes = query("SELECT * FROM system:indexes;");
-    List<Index> result = new ArrayList<>();
+    List<IndexData> result = new ArrayList<>();
     for (JsonObject index : indexes) {
       if (index.containsKey("is_primary") && index.get("is_primary").toString().equals("true")) {
-        Index i = new Index(index.get("keyspace_id").toString());
+        IndexData i = new IndexData();
+        i.setTable(index.get("keyspace_id").toString());
+        i.setPrimary(true);
         result.add(i);
         continue;
       }
       for (Object key : (JsonArray) index.get("index_key")) {
-        Index i = new Index(key.toString(),
-            index.get("keyspace_id").toString(),
-            index.get("name").toString(),
-            index.containsKey("condition") ? index.get("condition").toString() : "");
+        IndexData i = new IndexData();
+        i.setColumn(key.toString());
+        i.setTable(index.get("keyspace_id").toString());
+        i.setName(index.get("name").toString());
+        i.setCondition(index.containsKey("condition") ? index.get("condition").toString() : "");
         result.add(i);
       }
     }
     return result;
   }
 
-  public List<Table> getBuckets() {
+  public List<TableData> getBuckets() {
     REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
-    List<Table> result = new ArrayList<>();
+    List<TableData> result = new ArrayList<>();
     for (String bucket : listBuckets()) {
       try {
         String endpoint = "pools/default/buckets/" + bucket;
-        JsonNode data = client.get(endpoint).validate().json();
-        result.add(new Table(data, "_default", "_default"));
+        JsonNode bucketJson = client.get(endpoint).validate().json();
+        BucketData b = new BucketData();
+        b.setName(bucketJson.get("name").asText());
+        b.setType(bucketJson.get("bucketType").asText());
+        b.setQuota(bucketJson.get("quota").asInt() / 1048576);
+        b.setReplicas(bucketJson.get("replicaNumber").asInt());
+        b.setEviction(bucketJson.get("evictionPolicy").asText());
+        b.setTtl(bucketJson.has("maxTTL") ? bucketJson.get("maxTTL").asInt() : 0);
+        b.setStorage(bucketJson.has("storageBackend") ? bucketJson.get("storageBackend").asText() : "couchstore");
+        b.setResolution(bucketJson.has("conflictResolutionType") ? bucketJson.get("conflictResolutionType").asText() : "seqno");
+        b.setPassword(bucketJson.has("saslPassword") ? bucketJson.get("saslPassword").asText() : "");
+        TableData t = new TableData();
+        t.setBucket(b);
+        ScopeData s = new ScopeData();
+        s.setName("_default");
+        CollectionData c = new CollectionData();
+        c.setName("_default");
+        t.setScope(s);
+        t.setCollection(c);
+        result.add(t);
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
@@ -431,19 +451,43 @@ public final class CouchbaseConnect {
     return result;
   }
 
-  public List<User> getUsers() {
+  public RoleData parseRole(JsonNode role) {
+    RoleData r = new RoleData();
+    r.setRole(role.get("role").asText());
+    r.setBucketName(role.has("bucket_name") ? role.get("bucket_name").asText() : null);
+    r.setScopeName(role.has("scope_name") ? role.get("scope_name").asText() : null);
+    r.setCollectionName(role.has("collection_name") ? role.get("collection_name").asText() : null);
+    return r;
+  }
+
+  public List<UserData> getUsers() {
     if (majorRevision < 5) {
       return new ArrayList<>();
     }
     REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
-    List<User> result = new ArrayList<>();
+    List<UserData> result = new ArrayList<>();
     try {
       String endpoint = "settings/rbac/users";
       JsonNode results = client.get(endpoint).validate().json();
       for (JsonNode user : results) {
         boolean local = user.has("domain") && user.get("domain").asText().equals("local");
         if (local) {
-          result.add(new User(user));
+          UserData u = new UserData();
+          u.setId(user.get("id").asText());
+          u.setName(user.get("name").asText());
+          u.setRoles(new ArrayList<>());
+          u.setGroups(new ArrayList<>());
+          if (user.has("roles")) {
+            for (JsonNode role : user.get("roles")) {
+              u.getRoles().add(parseRole(role));
+            }
+          }
+          if (user.has("groups")) {
+            for (JsonNode group : user.get("groups")) {
+              u.getGroups().add(group.asText());
+            }
+          }
+          result.add(u);
         }
       }
     } catch (Exception e) {
@@ -452,21 +496,30 @@ public final class CouchbaseConnect {
     return result;
   }
 
-  public List<Group> getGroups() {
+  public List<GroupData> getGroups() {
     if (majorRevision < 6) {
       if (minorRevision < 5) {
         return new ArrayList<>();
       }
     }
     REST client = new REST(hostname, username, password, useSsl, adminPort);
-    List<Group> result = new ArrayList<>();
+    List<GroupData> result = new ArrayList<>();
     try {
       String endpoint = "settings/rbac/groups";
       JsonNode results = client.get(endpoint).validate().json();
       for (JsonNode group : results) {
         boolean ldap = group.has("ldap_group_ref") && !group.get("ldap_group_ref").isEmpty();
         if (!ldap) {
-          result.add(new Group(group));
+          GroupData g = new GroupData();
+          g.setId(group.get("id").asText());
+          g.setDescription(group.get("description").asText());
+          g.setRoles(new ArrayList<>());
+          if (group.has("roles")) {
+            for (JsonNode role : group.get("roles")) {
+              g.getRoles().add(parseRole(role));
+            }
+          }
+          result.add(g);
         }
       }
     } catch (Exception e) {

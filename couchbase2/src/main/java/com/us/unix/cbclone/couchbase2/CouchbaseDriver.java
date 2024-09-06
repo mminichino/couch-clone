@@ -38,70 +38,70 @@ public class CouchbaseDriver extends DatabaseDriver {
   }
 
   @Override
-  public void connectToTable(Table table) {
+  public void connectToTable(TableData table) {
     CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
     db = dbBuilder
         .host(hostname)
         .username(username)
         .password(password)
-        .bucketPassword(table.password)
+        .bucketPassword(table.getPassword())
         .legacyAuth(legacyAuth)
         .build();
-    db.connectBucket(table.name);
+    db.connectBucket(table.getName());
   }
 
   @Override
-  public List<Table> exportTables() {
+  public List<TableData> exportTables() {
     return db.getBuckets();
   }
 
   @Override
-  public List<Index> exportIndexes() {
+  public List<IndexData> exportIndexes() {
     return db.getIndexes();
   }
 
   @Override
-  public List<User> exportUsers() {
+  public List<UserData> exportUsers() {
     return db.getUsers();
   }
 
   @Override
-  public List<Group> exportGroups() {
+  public List<GroupData> exportGroups() {
     return db.getGroups();
   }
 
   @Override
-  public void exportData(Writer writer, Table table) {
+  public void exportData(Writer writer, TableData table) {
     if (!legacyAuth) {
-      stream = db.stream(table.name);
+      stream = db.stream(table.getName());
     } else {
-      stream = db.stream(table.name, table.password);
+      stream = db.stream(table.getName(), table.getPassword());
     }
     stream.toWriter(writer);
   }
 
   @Override
-  public void importTables(List<Table> tables) {
+  public void importTables(List<TableData> tables) {
 
   }
 
   @Override
-  public void importIndexes(List<Index> indexes) {
+  public void importIndexes(List<IndexData> indexes) {
 
   }
 
   @Override
-  public void importUsers(List<User> users) {
+  public void importUsers(List<UserData> users) {
 
   }
 
   @Override
-  public void importGroups(List<Group> groups) {
+  public void importGroups(List<GroupData> groups) {
 
   }
 
   @Override
-  public void importData(FileReader reader, Table table) {
+  public void importData(FileReader reader, TableData table) {
 
   }
 }

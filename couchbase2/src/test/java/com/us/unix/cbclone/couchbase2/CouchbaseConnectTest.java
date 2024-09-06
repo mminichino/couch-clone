@@ -1,9 +1,9 @@
 package com.us.unix.cbclone.couchbase2;
 
-import com.us.unix.cbclone.core.Group;
-import com.us.unix.cbclone.core.Index;
-import com.us.unix.cbclone.core.Table;
-import com.us.unix.cbclone.core.User;
+import com.us.unix.cbclone.core.GroupData;
+import com.us.unix.cbclone.core.IndexData;
+import com.us.unix.cbclone.core.TableData;
+import com.us.unix.cbclone.core.UserData;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -62,17 +62,17 @@ public class CouchbaseConnectTest {
     Assertions.assertTrue(result);
     db.dropBucket(DEFAULT_BUCKET);
     db.connectBucket(bucket);
-    for (Table table : db.getBuckets()) {
-      Assertions.assertNotNull(table.name);
+    for (TableData table : db.getBuckets()) {
+      Assertions.assertNotNull(table.getName());
     }
-    for (Index index : db.getIndexes()) {
-      Assertions.assertNotNull(index.column);
+    for (IndexData index : db.getIndexes()) {
+      Assertions.assertNotNull(index.getColumn());
     }
-    for (User user : db.getUsers()) {
-      Assertions.assertNotNull(user.username);
+    for (UserData user : db.getUsers()) {
+      Assertions.assertNotNull(user.getId());
     }
-    for (Group group : db.getGroups()) {
-      Assertions.assertNotNull(group.groupname);
+    for (GroupData group : db.getGroups()) {
+      Assertions.assertNotNull(group.getId());
     }
   }
 }

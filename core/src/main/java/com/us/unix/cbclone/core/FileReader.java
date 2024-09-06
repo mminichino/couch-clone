@@ -46,16 +46,7 @@ public class FileReader {
 
   public String readLine() {
     try {
-      reader.mark(1);
       return reader.readLine();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  public void resetLine() {
-    try {
-      reader.reset();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -74,86 +65,82 @@ public class FileReader {
   }
 
   public void readHeader() {
-    String header = readLine();
-    if (!header.equals("__HEADER__")) {
-      throw new RuntimeException("File format error, header marker not found");
-    }
     try {
+      String header = readLine();
+      if (!header.equals("__HEADER__")) {
+        throw new RuntimeException("File format error, header marker not found");
+      }
       String line = reader.readLine();
       JsonNode node = mapper.readTree(line);
       version = node.get("version").asText();
       timeStamp = node.get("timestamp").asText();
+      String footer = readLine();
+      if (!footer.equals("__END__")) {
+        throw new RuntimeException("File format error, header footer not found");
+      }
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  public List<Table> readTables() {
-    List<Table> tables = new ArrayList<>();
+  public List<TableData> readTables() {
+    List<TableData> tables = new ArrayList<>();
     String header = readLine();
     if (!header.equals("__TABLES__")) {
       throw new RuntimeException("File format error, table marker not found");
     }
     try {
-      for (String line = readLine(); line != null && !line.startsWith("__"); line = readLine()) {
-        JsonNode node = mapper.readTree(line);
-        tables.add(new Table(node));
+      for (String line = readLine(); line != null && !line.equals("__END__"); line = readLine()) {
+        tables.add(mapper.readValue(line, TableData.class));
       }
-      resetLine();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     return tables;
   }
 
-  public List<Index> readIndexes() {
-    List<Index> indexes = new ArrayList<>();
+  public List<IndexData> readIndexes() {
+    List<IndexData> indexes = new ArrayList<>();
     String header = readLine();
     if (!header.equals("__INDEXES__")) {
       throw new RuntimeException("File format error, index marker not found");
     }
     try {
-      for (String line = readLine(); line != null && !line.startsWith("__"); line = readLine()) {
-        JsonNode node = mapper.readTree(line);
-        indexes.add(new Index(node));
+      for (String line = readLine(); line != null && !line.equals("__END__"); line = readLine()) {
+        indexes.add(mapper.readValue(line, IndexData.class));
       }
-      resetLine();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     return indexes;
   }
 
-  public List<User> readUsers() {
-    List<User> users = new ArrayList<>();
+  public List<UserData> readUsers() {
+    List<UserData> users = new ArrayList<>();
     String header = readLine();
     if (!header.equals("__USERS__")) {
       throw new RuntimeException("File format error, user marker not found");
     }
     try {
-      for (String line = readLine(); line != null && !line.startsWith("__"); line = readLine()) {
-        JsonNode node = mapper.readTree(line);
-        users.add(new User(node));
+      for (String line = readLine(); line != null && !line.equals("__END__"); line = readLine()) {
+        users.add(mapper.readValue(line, UserData.class));
       }
-      resetLine();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
     return users;
   }
 
-  public List<Group> readGroups() {
-    List<Group> groups = new ArrayList<>();
+  public List<GroupData> readGroups() {
+    List<GroupData> groups = new ArrayList<>();
     String header = readLine();
     if (!header.equals("__GROUPS__")) {
       throw new RuntimeException("File format error, group marker not found");
     }
     try {
-      for (String line = readLine(); line != null && !line.startsWith("__"); line = readLine()) {
-        JsonNode node = mapper.readTree(line);
-        groups.add(new Group(node));
+      for (String line = readLine(); line != null && !line.equals("__END__"); line = readLine()) {
+        groups.add(mapper.readValue(line, GroupData.class));
       }
-      resetLine();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
