@@ -35,6 +35,15 @@ public class CouchbaseDriver extends DatabaseDriver {
     password = properties.getProperty(CLUSTER_PASSWORD, DEFAULT_PASSWORD);
     bucketPassword = properties.getProperty(BUCKET_PASSWORD, DEFAULT_BUCKET_PASSWORD);
     legacyAuth = Boolean.parseBoolean(properties.getProperty(LEGACY_AUTH, DEFAULT_LEGACY_AUTH));
+
+    CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
+    db = dbBuilder
+        .host(hostname)
+        .username(username)
+        .password(password)
+        .bucketPassword(bucketPassword)
+        .legacyAuth(legacyAuth)
+        .build();
   }
 
   @Override
@@ -47,17 +56,11 @@ public class CouchbaseDriver extends DatabaseDriver {
         .bucketPassword(table.getPassword())
         .legacyAuth(legacyAuth)
         .build();
-    db.connectBucket(table.getName());
   }
 
   @Override
   public List<TableData> exportTables() {
     return db.getBuckets();
-  }
-
-  @Override
-  public List<IndexData> exportIndexes() {
-    return db.getIndexes();
   }
 
   @Override
@@ -73,20 +76,15 @@ public class CouchbaseDriver extends DatabaseDriver {
   @Override
   public void exportData(Writer writer, TableData table) {
     if (!legacyAuth) {
-      stream = db.stream(table.getName());
+      stream = db.stream(table.getBucket().getName());
     } else {
-      stream = db.stream(table.getName(), table.getPassword());
+      stream = db.stream(table.getBucket().getName(), table.getBucket().getPassword());
     }
     stream.toWriter(writer);
   }
 
   @Override
   public void importTables(List<TableData> tables) {
-
-  }
-
-  @Override
-  public void importIndexes(List<IndexData> indexes) {
 
   }
 

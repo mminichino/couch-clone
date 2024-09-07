@@ -88,6 +88,24 @@ public class FileWriter {
     }
   }
 
+  public void startTableStream() {
+    String label = "__TABLES__";
+    writeLine(label);
+  }
+
+  public void endTableStream() {
+    String label = "__END__";
+    writeLine(label);
+  }
+
+  public void writeTable(TableData table) {
+    try {
+      writeLine(mapper.writeValueAsString(table));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   public void writeTables(List<TableData> tables) {
     String label = "__TABLES__";
     String footer = "__END__";

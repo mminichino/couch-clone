@@ -27,8 +27,6 @@ public class FileReaderTest {
     file.readHeader();
     List<TableData> tables = file.readTables();
     Assertions.assertEquals(tables.get(0).getName(), "customers");
-    List<IndexData> indexes = file.readIndexes();
-    Assertions.assertEquals(indexes.get(0).getColumn(), "name");
     List<UserData> users = file.readUsers();
     Assertions.assertEquals(users.get(0).getId(), "dbuser");
     List<GroupData> groups = file.readGroups();
@@ -45,8 +43,6 @@ public class FileReaderTest {
     file.readHeader();
     List<TableData> tables = file.readTables();
     Assertions.assertEquals(tables.get(0).getName(), "appdata.data.orders");
-    List<IndexData> indexes = file.readIndexes();
-    Assertions.assertEquals(indexes.get(0).getColumn(), "name");
     List<UserData> users = file.readUsers();
     Assertions.assertEquals(users.get(0).getId(), "developer");
     List<GroupData> groups = file.readGroups();

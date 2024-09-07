@@ -12,6 +12,7 @@ public class TableData {
   private String password;
   private ScopeData scope;
   private CollectionData collection;
+  private List<IndexData> indexes;
 
   public String getName() {
     return name;
@@ -49,6 +50,10 @@ public class TableData {
     return collection;
   }
 
+  public List<IndexData> getIndexes() {
+    return indexes;
+  }
+
   public void setName(String name) {
     this.name = name;
   }
@@ -84,6 +89,10 @@ public class TableData {
 
   public void setCollection(CollectionData collection) {
     this.collection = collection;
+  }
+
+  public void setIndexes(List<IndexData> indexes) {
+    this.indexes = indexes;
   }
 
   public static TableData inList(List<TableData> tables, String name) {

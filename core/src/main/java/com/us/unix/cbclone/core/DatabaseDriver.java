@@ -37,10 +37,6 @@ public abstract class DatabaseDriver {
     this.writer.writeTables(tables);
   }
 
-  public void writeIndexes() {
-    this.writer.writeIndexes(exportIndexes());
-  }
-
   public void writeUsers() {
     this.writer.writeUsers(exportUsers());
   }
@@ -68,10 +64,6 @@ public abstract class DatabaseDriver {
     importTables(this.reader.readTables());
   }
 
-  public void readIndexes() {
-    importIndexes(this.reader.readIndexes());
-  }
-
   public void readUsers() {
     importUsers(this.reader.readUsers());
   }
@@ -97,7 +89,6 @@ public abstract class DatabaseDriver {
   public void exportDatabase() {
     writeHeader();
     writeTables();
-    writeIndexes();
     writeUsers();
     writeGroups();
     writeData();
@@ -106,7 +97,6 @@ public abstract class DatabaseDriver {
   public void importDatabase() {
     readHeader();
     readTables();
-    readIndexes();
     readUsers();
     readGroups();
     readData();
@@ -116,9 +106,9 @@ public abstract class DatabaseDriver {
 
   public abstract void connectToTable(TableData table);
 
-  public abstract List<TableData> exportTables();
+//  public abstract List<String> listTables();
 
-  public abstract List<IndexData> exportIndexes();
+  public abstract List<TableData> exportTables();
 
   public abstract List<UserData> exportUsers();
 
@@ -127,8 +117,6 @@ public abstract class DatabaseDriver {
   public abstract void exportData(Writer writer, TableData table);
 
   public abstract void importTables(List<TableData> tables);
-
-  public abstract void importIndexes(List<IndexData> indexes);
 
   public abstract void importUsers(List<UserData> users);
 

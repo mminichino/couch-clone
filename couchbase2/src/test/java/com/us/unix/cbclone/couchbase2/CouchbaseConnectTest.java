@@ -65,9 +65,6 @@ public class CouchbaseConnectTest {
     for (TableData table : db.getBuckets()) {
       Assertions.assertNotNull(table.getName());
     }
-    for (IndexData index : db.getIndexes()) {
-      Assertions.assertNotNull(index.getColumn());
-    }
     for (UserData user : db.getUsers()) {
       Assertions.assertNotNull(user.getId());
     }

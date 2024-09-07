@@ -395,7 +395,8 @@ public final class CouchbaseConnect {
     return data;
   }
 
-  public List<IndexData> getIndexes() {
+  public List<IndexData> getIndexes(String bucket, String password) {
+    connectBucket(bucket, password);
     List<JsonObject> indexes = query("SELECT * FROM system:indexes;");
     List<IndexData> result = new ArrayList<>();
     for (JsonObject index : indexes) {
@@ -434,8 +435,13 @@ public final class CouchbaseConnect {
         b.setTtl(bucketJson.has("maxTTL") ? bucketJson.get("maxTTL").asInt() : 0);
         b.setStorage(bucketJson.has("storageBackend") ? bucketJson.get("storageBackend").asText() : "couchstore");
         b.setResolution(bucketJson.has("conflictResolutionType") ? bucketJson.get("conflictResolutionType").asText() : "seqno");
-        b.setPassword(bucketJson.has("saslPassword") ? bucketJson.get("saslPassword").asText() : "");
+        if (majorRevision < 5) {
+          b.setPassword(bucketJson.has("saslPassword") ? bucketJson.get("saslPassword").asText() : "");
+        } else {
+          b.setPassword("");
+        }
         TableData t = new TableData();
+        t.setName(bucket);
         t.setBucket(b);
         ScopeData s = new ScopeData();
         s.setName("_default");
@@ -443,6 +449,7 @@ public final class CouchbaseConnect {
         c.setName("_default");
         t.setScope(s);
         t.setCollection(c);
+        t.setIndexes(getIndexes(b.getName(), b.getPassword()));
         result.add(t);
       } catch (Exception e) {
         throw new RuntimeException(e);

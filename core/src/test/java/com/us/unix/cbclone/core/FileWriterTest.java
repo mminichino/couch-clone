@@ -37,25 +37,31 @@ public class FileWriterTest {
     address.setType(DataType.STRING);
     columns.add(name);
     columns.add(address);
+    IndexData nameIndex = new IndexData();
+    nameIndex.setColumn("name");
     TableData table = new TableData();
     table.setName("customers");
     table.setSize(256);
     table.setColumns(columns);
+    table.setIndexes(new ArrayList<>() {{ add(nameIndex); }});
     tables.add(table);
 
     columns = new ArrayList<>();
     ColumnData sku = new ColumnData();
-    sku.setName("name");
+    sku.setName("sku");
     sku.setType(DataType.STRING);
     ColumnData price = new ColumnData();
-    price.setName("address");
-    price.setType(DataType.STRING);
+    price.setName("price");
+    price.setType(DataType.FLOAT);
     columns.add(sku);
     columns.add(price);
+    IndexData skuIndex = new IndexData();
+    skuIndex.setColumn("sku");
     table = new TableData();
     table.setName("inventory");
     table.setSize(256);
     table.setColumns(columns);
+    table.setIndexes(new ArrayList<>() {{ add(skuIndex); }});
     tables.add(table);
 
     return tables;
@@ -85,6 +91,9 @@ public class FileWriterTest {
     b.setResolution(resolution);
     b.setPassword(password);
 
+    IndexData idIndex = new IndexData();
+    idIndex.setColumn("order_id");
+
     TableData t = new TableData();
     t.setName("appdata.data.orders");
     t.setSize(quota);
@@ -96,7 +105,11 @@ public class FileWriterTest {
     c.setName("orders");
     t.setScope(s);
     t.setCollection(c);
+    t.setIndexes(new ArrayList<>() {{ add(idIndex); }});
     tables.add(t);
+
+    IndexData nameIndex = new IndexData();
+    nameIndex.setColumn("name");
 
     t = new TableData();
     t.setName("appdata.data.customers");
@@ -109,6 +122,7 @@ public class FileWriterTest {
     c.setName("customers");
     t.setScope(s);
     t.setCollection(c);
+    t.setIndexes(new ArrayList<>() {{ add(nameIndex); }});
     tables.add(t);
 
     return tables;
@@ -219,8 +233,11 @@ public class FileWriterTest {
     FileWriter file = new FileWriter("rdbms", true);
     file.writeHeader();
     List<TableData> tables = generateDbTables();
-    file.writeTables(tables);
-    file.writeIndexes(generateDbIndexes());
+    file.startTableStream();
+    for (TableData table : tables) {
+      file.writeTable(table);
+    }
+    file.endTableStream();
     file.writeUsers(generateDbUsers());
     file.writeGroups(generateDbGroups());
     for (TableData table : tables) {
@@ -237,8 +254,11 @@ public class FileWriterTest {
     FileWriter file = new FileWriter("couchbase", true);
     file.writeHeader();
     List<TableData> tables = generateCbTables();
-    file.writeTables(tables);
-    file.writeIndexes(generateCbIndexes());
+    file.startTableStream();
+    for (TableData table : tables) {
+      file.writeTable(table);
+    }
+    file.endTableStream();
     file.writeUsers(generateCbUsers());
     file.writeGroups(generateCbGroups());
     for (TableData table : tables) {
