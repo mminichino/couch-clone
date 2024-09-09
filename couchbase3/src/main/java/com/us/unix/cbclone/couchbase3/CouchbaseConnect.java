@@ -18,6 +18,8 @@ import com.couchbase.client.java.http.HttpTarget;
 import com.couchbase.client.java.kv.*;
 import com.couchbase.client.java.manager.bucket.*;
 import com.couchbase.client.java.manager.collection.CollectionManager;
+import com.couchbase.client.java.manager.collection.CollectionSpec;
+import com.couchbase.client.java.manager.collection.ScopeSpec;
 import com.couchbase.client.java.manager.query.CollectionQueryIndexManager;
 import com.couchbase.client.java.manager.query.CreatePrimaryQueryIndexOptions;
 import com.couchbase.client.java.manager.query.CreateQueryIndexOptions;
@@ -495,32 +497,45 @@ public final class CouchbaseConnect {
   public List<TableData> getBuckets() {
     List<TableData> result = new ArrayList<>();
     for (Map.Entry<String, BucketSettings> entry : cluster.buckets().getAllBuckets().entrySet()) {
-      try {
-        BucketSettings bucketSettings = entry.getValue();
-        String bucket = bucketSettings.name();
-        BucketData b = new BucketData();
-        b.setName(bucket);
-        b.setType(bucketSettings.bucketType().toString());
-        b.setQuota((int) bucketSettings.ramQuotaMB());
-        b.setReplicas(bucketSettings.numReplicas());
-        b.setEviction(bucketSettings.evictionPolicy().toString());
-        b.setTtl((int) bucketSettings.maxExpiry().getSeconds());
-        b.setStorage(bucketSettings.storageBackend().toString());
-        b.setResolution(bucketSettings.conflictResolutionType().toString());
-        b.setPassword("");
-        TableData t = new TableData();
-        t.setName(bucketSettings.name());
-        t.setBucket(b);
-        ScopeData s = new ScopeData();
-        s.setName("_default");
-        CollectionData c = new CollectionData();
-        c.setName("_default");
-        t.setScope(s);
-        t.setCollection(c);
-        t.setIndexes(getIndexes(bucket));
-        result.add(t);
-      } catch (Exception e) {
-        throw new RuntimeException(e);
+      BucketSettings bucketSettings = entry.getValue();
+      String bucketName = bucketSettings.name();
+      Bucket bucket = cluster.bucket(bucketName);
+      CollectionManager cm = bucket.collections();
+      for (ScopeSpec scope : cm.getAllScopes()) {
+        String scopeName = scope.name();
+        if (scopeName.equals("_system")) {
+          continue;
+        }
+        for (CollectionSpec collection : scope.collections()) {
+          String collectionName = collection.name();
+          try {
+            BucketData b = new BucketData();
+            b.setName(bucketName);
+            b.setType(bucketSettings.bucketType().toString());
+            b.setQuota((int) bucketSettings.ramQuotaMB());
+            b.setReplicas(bucketSettings.numReplicas());
+            b.setEviction(bucketSettings.evictionPolicy().toString());
+            b.setTtl((int) bucketSettings.maxExpiry().getSeconds());
+            b.setStorage(bucketSettings.storageBackend().toString());
+            b.setResolution(bucketSettings.conflictResolutionType().toString());
+            b.setPassword("");
+            TableData t = new TableData();
+            t.setName(bucketSettings.name());
+            t.setBucket(b);
+            ScopeData s = new ScopeData();
+            s.setName(scopeName);
+            CollectionData c = new CollectionData();
+            c.setName(collectionName);
+            c.setTtl((int) collection.maxExpiry().getSeconds());
+            c.setHistory(collection.history() != null ? collection.history() : false);
+            t.setScope(s);
+            t.setCollection(c);
+            t.setIndexes(getIndexes(bucketName));
+            result.add(t);
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        }
       }
     }
     return result;

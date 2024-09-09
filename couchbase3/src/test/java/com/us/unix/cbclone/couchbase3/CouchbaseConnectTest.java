@@ -54,12 +54,15 @@ public class CouchbaseConnectTest {
     db.dropBucket(DEFAULT_BUCKET);
     db.connectBucket(bucket);
     for (TableData table : db.getBuckets()) {
+      System.out.printf("%s.%s.%s\n", table.getName(), table.getScope().getName(), table.getCollection().getName());
       Assertions.assertNotNull(table.getName());
     }
     for (UserData user : db.getUsers()) {
+      System.out.println(user.getId());
       Assertions.assertNotNull(user.getId());
     }
     for (GroupData group : db.getGroups()) {
+      System.out.println(group.getId());
       Assertions.assertNotNull(group.getId());
     }
   }
