@@ -101,6 +101,8 @@ public class CouchbaseStream {
     client = Client.builder()
         .connectionString(connectString)
         .bucket(bucket)
+        .collectionsAware(true)
+        .collectionNames(scope + "." + collection)
         .securityConfig(secClientConfig)
         .credentials(username, password)
         .build();
