@@ -1,28 +1,51 @@
-package com.us.unix.cbclone.couchbase2;
+package com.us.unix.cbclone.couchbase3;
 
+import com.couchbase.client.core.config.AlternateAddress;
+import com.couchbase.client.core.env.*;
+import com.couchbase.client.core.error.*;
+import com.couchbase.client.core.msg.kv.DurabilityLevel;
+import com.couchbase.client.core.config.PortInfo;
 import com.couchbase.client.java.*;
-import com.couchbase.client.java.bucket.BucketType;
-import com.couchbase.client.java.cluster.BucketSettings;
-import com.couchbase.client.java.cluster.ClusterManager;
-import com.couchbase.client.java.cluster.ClusterInfo;
-import com.couchbase.client.java.cluster.DefaultBucketSettings;
-import com.couchbase.client.java.document.json.JsonArray;
-import com.couchbase.client.java.error.DocumentDoesNotExistException;
-import com.couchbase.client.java.error.BucketAlreadyExistsException;
-import com.couchbase.client.java.error.BucketDoesNotExistException;
+import com.couchbase.client.java.Collection;
+import com.couchbase.client.java.codec.RawJsonTranscoder;
+import com.couchbase.client.java.codec.TypeRef;
+import com.couchbase.client.java.env.ClusterEnvironment;
+import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import com.couchbase.client.java.http.CouchbaseHttpClient;
+import com.couchbase.client.java.http.HttpPath;
+import com.couchbase.client.java.http.HttpResponse;
+import com.couchbase.client.java.http.HttpTarget;
+import com.couchbase.client.java.kv.*;
+import com.couchbase.client.java.manager.bucket.*;
+import com.couchbase.client.java.manager.collection.CollectionManager;
+import com.couchbase.client.java.manager.query.CollectionQueryIndexManager;
+import com.couchbase.client.java.manager.query.CreatePrimaryQueryIndexOptions;
+import com.couchbase.client.java.manager.query.CreateQueryIndexOptions;
+import static com.couchbase.client.java.kv.MutateInSpec.arrayAppend;
+import static com.couchbase.client.java.kv.UpsertOptions.upsertOptions;
+import static com.couchbase.client.java.kv.MutateInOptions.mutateInOptions;
+import static com.couchbase.client.java.kv.GetOptions.getOptions;
+import static com.couchbase.client.java.query.QueryOptions.queryOptions;
 
-import com.couchbase.client.java.document.json.JsonObject;
-import com.couchbase.client.java.document.JsonDocument;
-import com.couchbase.client.java.query.*;
-import com.couchbase.client.java.query.consistency.ScanConsistency;
+import com.couchbase.client.java.query.QueryScanConsistency;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.us.unix.cbclone.core.*;
-import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Couchbase Connection Utility.
@@ -30,8 +53,11 @@ import java.util.*;
 public final class CouchbaseConnect {
   static final Logger LOGGER = LoggerFactory.getLogger(CouchbaseConnect.class);
   private volatile Cluster cluster;
-  private volatile ClusterManager clusterManager;
   private volatile Bucket bucket;
+  private volatile Scope scope;
+  private volatile Collection collection;
+  private volatile ClusterEnvironment environment;
+  private volatile BucketManager bucketMgr;
   public static final String DEFAULT_USER = "Administrator";
   public static final String DEFAULT_PASSWORD = "password";
   public static final String DEFAULT_BUCKET_PASSWORD = "";
@@ -44,11 +70,12 @@ public final class CouchbaseConnect {
   private final String hostname;
   private final String username;
   private final String password;
-  private String bucketPassword;
   private int bucketReplicas;
-  private final boolean legacyAuth;
+  private final BucketType bucketType;
+  private final StorageBackend bucketStorage;
   private final String rootCert;
   private final String clientCert;
+  private final KeyStoreType keyStoreType;
   private String project;
   private String database;
   private boolean external;
@@ -57,13 +84,15 @@ public final class CouchbaseConnect {
   public int adminPort;
   public int eventingPort;
   private final int ttlSeconds;
+  private static int maxParallelism;
   private final ObjectMapper mapper = new ObjectMapper();
-  private JsonNode hostMap = mapper.createObjectNode();
   private JsonNode clusterInfo = mapper.createObjectNode();
   public String clusterVersion;
   public int majorRevision;
   public int minorRevision;
   public int patchRevision;
+  public int buildNumber;
+  public String clusterEdition;
   private final boolean enableDebug;
 
   /**
@@ -76,11 +105,14 @@ public final class CouchbaseConnect {
     private String bucketPass = DEFAULT_BUCKET_PASSWORD;
     private String rootCert;
     private String clientCert;
+    private KeyStoreType keyStoreType = KeyStoreType.PKCS12;
     private Boolean sslMode = DEFAULT_SSL_MODE;
     private Boolean legacyAuth = false;
     private Boolean enableDebug = false;
     private String bucketName;
     private int bucketReplicas = 1;
+    private BucketType bucketType = BucketType.COUCHBASE;
+    private StorageBackend bucketStorage = StorageBackend.COUCHSTORE;
     private int ttlSeconds = 0;
 
     public CouchbaseBuilder ttl(int value) {
@@ -113,6 +145,16 @@ public final class CouchbaseConnect {
       return this;
     }
 
+    public CouchbaseBuilder bucketType(final BucketType type) {
+      this.bucketType = type;
+      return this;
+    }
+
+    public CouchbaseBuilder bucketStorage(final StorageBackend type) {
+      this.bucketStorage = type;
+      return this;
+    }
+
     public CouchbaseBuilder rootCert(final String name) {
       this.rootCert = name;
       return this;
@@ -123,8 +165,8 @@ public final class CouchbaseConnect {
       return this;
     }
 
-    public CouchbaseBuilder legacyAuth(final Boolean mode) {
-      this.legacyAuth = mode;
+    public CouchbaseBuilder keyStoreType(final KeyStoreType type) {
+      this.keyStoreType = type;
       return this;
     }
 
@@ -159,15 +201,17 @@ public final class CouchbaseConnect {
     hostname = builder.hostname;
     username = builder.username;
     password = builder.password;
-    bucketPassword = builder.bucketPass;
     rootCert = builder.rootCert;
     clientCert = builder.clientCert;
-    legacyAuth = builder.legacyAuth;
+    keyStoreType = builder.keyStoreType;
     enableDebug = builder.enableDebug;
     useSsl = builder.sslMode;
     ttlSeconds = builder.ttlSeconds;
     bucketName = builder.bucketName;
     bucketReplicas = builder.bucketReplicas;
+    bucketType = builder.bucketType;
+    bucketStorage = builder.bucketStorage;
+    maxParallelism = 0;
     connect();
   }
 
@@ -186,13 +230,57 @@ public final class CouchbaseConnect {
 
     synchronized (STARTUP_COORDINATOR) {
       try {
-        if (cluster == null) {
-
-          cluster = CouchbaseCluster.create(hostname);
-          if (!legacyAuth) {
-            cluster.authenticate(username, password);
+        if (environment == null) {
+          Consumer<SecurityConfig.Builder> secConfiguration;
+          if (rootCert != null) {
+            secConfiguration = securityConfig -> securityConfig
+                .enableTls(true)
+                .trustCertificate(Paths.get(rootCert));
+          } else {
+            secConfiguration = securityConfig -> securityConfig
+                .enableTls(useSsl)
+                .enableHostnameVerification(false)
+                .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
           }
-          clusterManager = cluster.clusterManager(username, password);
+
+          Consumer<IoConfig.Builder> ioConfiguration = ioConfig -> ioConfig
+              .numKvConnections(4)
+              .networkResolution(NetworkResolution.AUTO)
+              .enableMutationTokens(false);
+
+          Consumer<TimeoutConfig.Builder> timeOutConfiguration = timeoutConfig -> timeoutConfig
+              .kvTimeout(Duration.ofSeconds(5))
+              .connectTimeout(Duration.ofSeconds(15))
+              .queryTimeout(Duration.ofSeconds(75));
+
+          Authenticator authenticator;
+          if (clientCert != null) {
+            KeyStore keyStore = KeyStore.getInstance(keyStoreType.name());
+            keyStore.load(new FileInputStream(clientCert), password.toCharArray());
+            authenticator = CertificateAuthenticator.fromKeyStore(
+                keyStore,
+                password
+            );
+          } else {
+            authenticator = PasswordAuthenticator.create(username, password);
+          }
+
+          environment = ClusterEnvironment
+              .builder()
+              .timeoutConfig(timeOutConfiguration)
+              .ioConfig(ioConfiguration)
+              .securityConfig(secConfiguration)
+              .build();
+          cluster = Cluster.connect(connectString,
+              ClusterOptions.clusterOptions(authenticator).environment(environment));
+          cluster.waitUntilReady(Duration.ofSeconds(15));
+          bucketMgr = cluster.buckets();
+          try {
+            if (bucketName != null) {
+              bucketMgr.getBucket(bucketName);
+              bucket = cluster.bucket(bucketName);
+            }
+          } catch (BucketNotFoundException ignored) { }
           getClusterInfo();
         }
       } catch(Exception e) {
@@ -207,7 +295,6 @@ public final class CouchbaseConnect {
       cluster.disconnect();
     }
     cluster = null;
-    hostMap = mapper.createObjectNode();
     clusterInfo = mapper.createObjectNode();
   }
 
@@ -215,8 +302,8 @@ public final class CouchbaseConnect {
     return new CouchbaseStream(hostname, username, password, bucketName, true);
   }
 
-  public CouchbaseStream stream(String bucketName, String bucketPassword) {
-    return new CouchbaseStream(hostname, bucketPassword, bucketName, true);
+  public CouchbaseStream stream(String bucketName, String scopeName, String collectionName) {
+    return new CouchbaseStream(hostname, username, password, bucketName, true, scopeName, collectionName);
   }
 
   public String hostValue() {
@@ -249,13 +336,18 @@ public final class CouchbaseConnect {
   }
 
   private void getClusterInfo() {
-    ClusterInfo clusterData = clusterManager.info();
-    clusterVersion = clusterData.getMinVersion().toString();
-    majorRevision = Integer.parseInt(clusterVersion.split("\\.")[0]);
-    minorRevision = Integer.parseInt(clusterVersion.split("\\.")[1]);
-    patchRevision = Integer.parseInt(clusterVersion.split("\\.")[2]);
+    HttpResponse response = cluster.httpClient().get(
+        HttpTarget.manager(),
+        HttpPath.of("/pools/default"));
     try {
-      clusterInfo = mapper.readTree(clusterData.raw().toString());
+      clusterInfo = mapper.readTree(response.contentAsString());
+      String clusterFullVersion = clusterInfo.get("nodes").get(0).get("version").asText();
+      clusterVersion = clusterFullVersion.split("-")[0];
+      buildNumber = Integer.parseInt(clusterFullVersion.split("-")[1]);
+      clusterEdition = clusterFullVersion.split("-")[2];
+      majorRevision = Integer.parseInt(clusterVersion.split("\\.")[0]);
+      minorRevision = Integer.parseInt(clusterVersion.split("\\.")[1]);
+      patchRevision = Integer.parseInt(clusterVersion.split("\\.")[2]);
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
@@ -268,13 +360,7 @@ public final class CouchbaseConnect {
   }
 
   public List<String> listBuckets() {
-    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
-    try {
-      String endpoint = "pools/default/buckets";
-      return client.get(endpoint).validate().json().findValuesAsText("name");
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    return new ArrayList<>(cluster.buckets().getAllBuckets().keySet());
   }
 
   public Boolean isBucket(String bucket) {
@@ -283,30 +369,12 @@ public final class CouchbaseConnect {
   }
 
   public void connectBucket() {
-    if (!bucketPassword.isEmpty()) {
-      bucket = cluster.openBucket(bucketName, bucketPassword);
-    } else {
-      bucket = cluster.openBucket(bucketName);
-    }
+    bucket = cluster.bucket(bucketName);
   }
 
   public void connectBucket(String name) {
     this.bucketName = name;
-    if (!bucketPassword.isEmpty()) {
-      bucket = cluster.openBucket(bucketName, bucketPassword);
-    } else {
-      bucket = cluster.openBucket(bucketName);
-    }
-  }
-
-  public void connectBucket(String name, String password) {
-    this.bucketName = name;
-    this.bucketPassword = password;
-    if (!bucketPassword.isEmpty()) {
-      bucket = cluster.openBucket(bucketName, bucketPassword);
-    } else {
-      bucket = cluster.openBucket(bucketName);
-    }
+    bucket = cluster.bucket(bucketName);
   }
 
   public void createBucket(String name) {
@@ -323,96 +391,101 @@ public final class CouchbaseConnect {
     bucketCreate(name, quota);
   }
 
-  public void createBucket(String name, int quota, int replicas, String password) {
-    this.bucketReplicas = replicas;
-    this.bucketPassword = password;
-    bucketCreate(name, quota);
-  }
-
   public void bucketCreate(String name, int quota) {
-    BucketSettings bucketSettings = new DefaultBucketSettings.Builder()
-        .type(BucketType.COUCHBASE)
-        .name(name)
-        .password(bucketPassword)
-        .quota(quota)
-        .replicas(bucketReplicas)
-        .indexReplicas(true)
-        .enableFlush(true)
-        .build();
+    BucketSettings bucketSettings = BucketSettings.create(name)
+        .flushEnabled(false)
+        .replicaIndexes(true)
+        .ramQuotaMB(quota)
+        .numReplicas(bucketReplicas)
+        .bucketType(bucketType)
+        .storageBackend(bucketStorage)
+        .conflictResolutionType(ConflictResolutionType.SEQUENCE_NUMBER);
     try {
-      clusterManager.insertBucket(bucketSettings);
-    } catch (BucketAlreadyExistsException e) {
+      bucketMgr.createBucket(bucketSettings);
+    } catch (BucketExistsException e) {
       LOGGER.info("Create: Bucket {} already exists", name);
     }
   }
 
   public void dropBucket(String name) {
     try {
-      clusterManager.removeBucket(name);
-    } catch (BucketDoesNotExistException e) {
+      bucketMgr.dropBucket(name);
+    } catch (BucketNotFoundException e) {
       LOGGER.info("Drop: Bucket {} does not exist", name);
     }
   }
 
-  public JsonObject get(String id) {
-    if (bucket == null) {
+  public JsonNode get(String id) {
+    if (collection == null) {
       throw new RuntimeException("Bucket is not connected");
     }
     try {
-      return bucket.get(id).content();
-    } catch (DocumentDoesNotExistException e) {
+      String result = collection.get(id, getOptions().transcoder(RawJsonTranscoder.INSTANCE)).contentAs(String.class);
+      return mapper.readTree(result);
+    } catch (DocumentNotFoundException e) {
       return null;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
-  public void upsert(String id, JsonObject content) {
-    if (bucket == null) {
+  public void upsert(String id, Object content) {
+    if (collection == null) {
       throw new RuntimeException("Bucket is not connected");
     }
     try {
-      bucket.upsert(JsonDocument.create(id, content));
+      collection.upsert(id, content, upsertOptions().expiry(Duration.ofSeconds(ttlSeconds)));
     } catch (Exception e) {
       LOGGER.error(e.getMessage(), e);
       throw new RuntimeException(e);
     }
   }
 
-  public List<JsonObject> query(String queryString) {
-    if (bucket == null) {
+  public List<JsonNode> query(String queryString) {
+    if (cluster == null) {
       throw new RuntimeException("Bucket is not connected");
     }
-    final List<JsonObject> data = Collections.synchronizedList(new ArrayList<>());
+    TypeRef<Map<String, Object>> typeRef = new TypeRef<>() {};
     try {
-      for (N1qlQueryRow item : bucket.query(N1qlQuery.simple(queryString, N1qlParams.build().consistency(ScanConsistency.REQUEST_PLUS)))) {
-        for (String name : item.value().getNames()) {
-          data.add(item.value().getObject(name));
-        }
-      }
+      return cluster.reactive().query(queryString, queryOptions()
+              .scanConsistency(QueryScanConsistency.REQUEST_PLUS)
+              .maxParallelism(maxParallelism))
+          .flatMapMany(res -> res.rowsAs(typeRef))
+          .map(Map::values)
+          .flatMapIterable(o -> mapper.convertValue(o, JsonNode.class))
+          .collectList()
+          .block();
     } catch (Exception e) {
       LOGGER.error(e.getMessage(), e);
       throw new RuntimeException(e);
     }
-    return data;
   }
 
-  public List<IndexData> getIndexes(String bucket, String password) {
-    connectBucket(bucket, password);
-    List<JsonObject> indexes = query("SELECT * FROM system:indexes;");
+  public List<String> getStringList(JsonNode node) {
+    try {
+      return mapper.readerFor(new TypeReference<List<String>>() {}).readValue(node);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public List<IndexData> getIndexes(String bucket) {
+    List<JsonNode> indexes = query("SELECT * FROM system:indexes;");
     List<IndexData> result = new ArrayList<>();
-    for (JsonObject index : indexes) {
-      if (index.containsKey("is_primary") && index.get("is_primary").toString().equals("true")) {
+    for (JsonNode index : indexes) {
+      if (index.has("is_primary") && index.get("is_primary").toString().equals("true")) {
         IndexData i = new IndexData();
         i.setTable(index.get("keyspace_id").toString());
         i.setPrimary(true);
         result.add(i);
         continue;
       }
-      for (Object key : (JsonArray) index.get("index_key")) {
+      for (String key : getStringList(index.get("index_key"))) {
         IndexData i = new IndexData();
-        i.setColumn(key.toString().replace("`", ""));
+        i.setColumn(key.replace("`", ""));
         i.setTable(index.get("keyspace_id").toString());
         i.setName(index.get("name").toString());
-        i.setCondition(index.containsKey("condition") ? index.get("condition").toString() : "");
+        i.setCondition(index.has("condition") ? index.get("condition").toString() : "");
         result.add(i);
       }
     }
@@ -420,28 +493,23 @@ public final class CouchbaseConnect {
   }
 
   public List<TableData> getBuckets() {
-    REST client = new REST(hostname, username, password, useSsl, adminPort).enableDebug(enableDebug);
     List<TableData> result = new ArrayList<>();
-    for (String bucket : listBuckets()) {
+    for (Map.Entry<String, BucketSettings> entry : cluster.buckets().getAllBuckets().entrySet()) {
       try {
-        String endpoint = "pools/default/buckets/" + bucket;
-        JsonNode bucketJson = client.get(endpoint).validate().json();
+        BucketSettings bucketSettings = entry.getValue();
+        String bucket = bucketSettings.name();
         BucketData b = new BucketData();
-        b.setName(bucketJson.get("name").asText());
-        b.setType(bucketJson.get("bucketType").asText());
-        b.setQuota(bucketJson.get("quota").asInt() / 1048576);
-        b.setReplicas(bucketJson.get("replicaNumber").asInt());
-        b.setEviction(bucketJson.get("evictionPolicy").asText());
-        b.setTtl(bucketJson.has("maxTTL") ? bucketJson.get("maxTTL").asInt() : 0);
-        b.setStorage(bucketJson.has("storageBackend") ? bucketJson.get("storageBackend").asText() : "couchstore");
-        b.setResolution(bucketJson.has("conflictResolutionType") ? bucketJson.get("conflictResolutionType").asText() : "seqno");
-        if (majorRevision < 5) {
-          b.setPassword(bucketJson.has("saslPassword") ? bucketJson.get("saslPassword").asText() : "");
-        } else {
-          b.setPassword("");
-        }
+        b.setName(bucket);
+        b.setType(bucketSettings.bucketType().toString());
+        b.setQuota((int) bucketSettings.ramQuotaMB());
+        b.setReplicas(bucketSettings.numReplicas());
+        b.setEviction(bucketSettings.evictionPolicy().toString());
+        b.setTtl((int) bucketSettings.maxExpiry().getSeconds());
+        b.setStorage(bucketSettings.storageBackend().toString());
+        b.setResolution(bucketSettings.conflictResolutionType().toString());
+        b.setPassword("");
         TableData t = new TableData();
-        t.setName(bucket);
+        t.setName(bucketSettings.name());
         t.setBucket(b);
         ScopeData s = new ScopeData();
         s.setName("_default");
@@ -449,7 +517,7 @@ public final class CouchbaseConnect {
         c.setName("_default");
         t.setScope(s);
         t.setCollection(c);
-        t.setIndexes(getIndexes(b.getName(), b.getPassword()));
+        t.setIndexes(getIndexes(bucket));
         result.add(t);
       } catch (Exception e) {
         throw new RuntimeException(e);

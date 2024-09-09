@@ -1,14 +1,29 @@
-package com.us.unix.cbclone.couchbase2;
+package com.us.unix.cbclone.couchbase3;
 
-import com.couchbase.client.dcp.*;
+import com.couchbase.client.dcp.Client;
+import com.couchbase.client.dcp.StreamFrom;
+import com.couchbase.client.dcp.StreamTo;
 import com.couchbase.client.dcp.config.DcpControl;
 import com.couchbase.client.dcp.message.DcpMutationMessage;
 import com.couchbase.client.dcp.message.MessageUtil;
+import com.couchbase.client.dcp.SecurityConfig;
+import com.couchbase.client.dcp.highlevel.internal.CollectionIdAndKey;
+import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -18,12 +33,6 @@ import java.util.zip.GZIPOutputStream;
 
 import static java.util.Objects.requireNonNull;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.slf4j.LoggerFactory;
-import org.slf4j.Logger;
-
 /**
  * Couchbase Stream Utility.
  */
@@ -32,10 +41,11 @@ public class CouchbaseStream {
   private final String hostname;
   private final String username;
   private final String password;
-  private final String bucketPassword;
   private final String bucket;
+  private final String scope;
+  private final String collection;
   private final Boolean useSsl;
-  private boolean legacyAuth = false;
+  private boolean collectionEnabled;
   private final AtomicLong totalSize = new AtomicLong(0);
   private final AtomicLong docCount = new AtomicLong(0);
   private final AtomicLong sentCount = new AtomicLong(0);
@@ -46,20 +56,22 @@ public class CouchbaseStream {
     this.hostname = hostname;
     this.username = username;
     this.password = password;
-    this.bucketPassword = "";
     this.bucket = bucket;
     this.useSsl = ssl;
+    this.scope = "_default";
+    this.collection = "_default";
     this.init();
   }
 
-  public CouchbaseStream(String hostname, String password, String bucket, Boolean ssl) {
+  public CouchbaseStream(String hostname, String username, String password, String bucket, Boolean ssl,
+                         String scope, String collection) {
     this.hostname = hostname;
-    this.username = "";
-    this.password = "";
-    this.bucketPassword = password;
-    this.legacyAuth = true;
+    this.username = username;
+    this.password = password;
     this.bucket = bucket;
     this.useSsl = ssl;
+    this.scope = scope;
+    this.collection = collection;
     this.init();
   }
 
@@ -78,21 +90,20 @@ public class CouchbaseStream {
 
     String connectString = connectBuilder.toString();
 
-    Client.Builder clientBuilder = Client.builder()
+    collectionEnabled = !collection.equals("_default");
+
+    Consumer<SecurityConfig.Builder> secClientConfig = securityConfig -> {
+      securityConfig.enableTls(useSsl)
+          .enableHostnameVerification(false)
+          .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
+    };
+
+    client = Client.builder()
         .connectionString(connectString)
         .bucket(bucket)
-        .controlParam(DcpControl.Names.CONNECTION_BUFFER_SIZE, 1048576)
-        .bufferAckWatermark(75);
-
-    if (!legacyAuth) {
-      clientBuilder.credentials(username, password);
-    } else {
-      if (!bucketPassword.isEmpty()) {
-        clientBuilder.password(bucketPassword);
-      }
-    }
-
-    client = clientBuilder.build();
+        .securityConfig(secClientConfig)
+        .credentials(username, password)
+        .build();
 
     client.controlEventHandler((flowController, event) -> {
       flowController.ack(event);
@@ -135,13 +146,13 @@ public class CouchbaseStream {
   public void streamDocuments() {
     client.dataEventHandler((flowController, event) -> {
       if (DcpMutationMessage.is(event)) {
-        String key = MessageUtil.getKeyAsString(event);
+        CollectionIdAndKey key = MessageUtil.getCollectionIdAndKey(event, collectionEnabled);
         byte[] content = DcpMutationMessage.contentBytes(event);
         try {
           ObjectMapper mapper = new ObjectMapper();
           JsonNode document = mapper.readTree(content);
           ObjectNode metadata = mapper.createObjectNode();
-          metadata.put("id", key);
+          metadata.put("id", key.key());
           ObjectNode root = mapper.createObjectNode();
           root.set("metadata", metadata);
           root.set("document", document);
