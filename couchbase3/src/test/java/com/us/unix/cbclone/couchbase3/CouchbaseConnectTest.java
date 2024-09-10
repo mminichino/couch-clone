@@ -1,9 +1,6 @@
 package com.us.unix.cbclone.couchbase3;
 
-import com.us.unix.cbclone.core.GroupData;
-import com.us.unix.cbclone.core.IndexData;
-import com.us.unix.cbclone.core.TableData;
-import com.us.unix.cbclone.core.UserData;
+import com.us.unix.cbclone.core.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -55,10 +52,13 @@ public class CouchbaseConnectTest {
     db.dropBucket(DEFAULT_BUCKET);
     db.connectBucket(bucket);
     for (TableData table : db.getBuckets()) {
-      System.out.printf("%s.%s.%s\n", table.getName(), table.getScope().getName(), table.getCollection().getName());
+      System.out.printf("[Table] %s.%s.%s\n", table.getName(), table.getScope().getName(), table.getCollection().getName());
       Assertions.assertNotNull(table.getName());
       for (IndexData index : table.getIndexes()) {
-        System.out.println(index.getName());
+        System.out.printf("[Index] %s\n", index.getName());
+      }
+      for (SearchIndexData index : table.getSearchIndexes()) {
+        System.out.printf("[FTS] %s\n", index.getName());
       }
     }
     for (UserData user : db.getUsers()) {

@@ -13,6 +13,7 @@ public class TableData {
   private ScopeData scope;
   private CollectionData collection;
   private List<IndexData> indexes;
+  private List<SearchIndexData> searchIndexes;
 
   public String getName() {
     return name;
@@ -54,6 +55,10 @@ public class TableData {
     return indexes;
   }
 
+  public List<SearchIndexData> getSearchIndexes() {
+    return searchIndexes;
+  }
+
   public void setName(String name) {
     this.name = name;
   }
@@ -93,6 +98,10 @@ public class TableData {
 
   public void setIndexes(List<IndexData> indexes) {
     this.indexes = indexes;
+  }
+
+  public void setSearchIndexes(List<SearchIndexData> searchIndexes) {
+    this.searchIndexes = searchIndexes;
   }
 
   public static TableData inList(List<TableData> tables, String name) {
