@@ -98,14 +98,17 @@ public class CouchbaseStream {
           .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE);
     };
 
-    client = Client.builder()
+    Client.Builder clientBuilder = Client.builder()
         .connectionString(connectString)
         .bucket(bucket)
-        .collectionsAware(true)
-        .collectionNames(scope + "." + collection)
         .securityConfig(secClientConfig)
-        .credentials(username, password)
-        .build();
+        .credentials(username, password);
+
+    if (!scope.equals("_default") || !collection.equals("_default")) {
+      clientBuilder.collectionsAware(true).collectionNames(scope + "." + collection);
+    }
+
+    client = clientBuilder.build();
 
     client.controlEventHandler((flowController, event) -> {
       flowController.ack(event);
