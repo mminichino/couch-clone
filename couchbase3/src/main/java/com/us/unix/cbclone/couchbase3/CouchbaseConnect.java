@@ -43,10 +43,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -471,23 +468,31 @@ public final class CouchbaseConnect {
     }
   }
 
-  public List<IndexData> getIndexes(String bucket) {
+  public List<IndexData> getIndexes(String bucket, String collection) {
     List<JsonNode> indexes = query("SELECT * FROM system:indexes;");
     List<IndexData> result = new ArrayList<>();
     for (JsonNode index : indexes) {
-      if (index.has("is_primary") && index.get("is_primary").toString().equals("true")) {
+      if (collection.equals("_default")) {
+        if (!index.get("keyspace_id").asText().equals(bucket)) {
+          continue;
+        }
+      } else {
+        if (!index.get("keyspace_id").asText().equals(collection)) {
+          continue;
+        }
+      }
+      if (index.has("is_primary") && index.get("is_primary").asBoolean()) {
         IndexData i = new IndexData();
-        i.setTable(index.get("keyspace_id").toString());
+        i.setTable(index.get("keyspace_id").asText());
+        i.setName(index.get("name").asText());
         i.setPrimary(true);
         result.add(i);
-        continue;
-      }
-      for (String key : getStringList(index.get("index_key"))) {
+      } else {
         IndexData i = new IndexData();
-        i.setColumn(key.replace("`", ""));
-        i.setTable(index.get("keyspace_id").toString());
-        i.setName(index.get("name").toString());
-        i.setCondition(index.has("condition") ? index.get("condition").toString() : "");
+        i.setIndexKeys(getStringList(index.get("index_key")));
+        i.setTable(index.get("keyspace_id").asText());
+        i.setName(index.get("name").asText());
+        i.setCondition(index.has("condition") ? index.get("condition").asText() : "");
         result.add(i);
       }
     }
@@ -530,7 +535,7 @@ public final class CouchbaseConnect {
             c.setHistory(collection.history() != null ? collection.history() : false);
             t.setScope(s);
             t.setCollection(c);
-            t.setIndexes(getIndexes(bucketName));
+            t.setIndexes(getIndexes(bucketName, collectionName));
             result.add(t);
           } catch (Exception e) {
             throw new RuntimeException(e);

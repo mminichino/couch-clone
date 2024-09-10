@@ -50,7 +50,13 @@ public abstract class DatabaseDriver {
       if (tableName != null && !tableName.equals(table.getName())) {
         continue;
       }
-      this.writer.startDataStream(table.getName());
+      String tableFullName;
+      if (table.getScope().getName() != null && table.getCollection().getName() != null) {
+        tableFullName = table.getName() + "." + table.getScope().getName() + "." + table.getCollection().getName();
+      } else {
+        tableFullName = table.getName();
+      }
+      this.writer.startDataStream(tableFullName);
       Writer writer = this.writer.getWriter();
       exportData(writer, table);
     }

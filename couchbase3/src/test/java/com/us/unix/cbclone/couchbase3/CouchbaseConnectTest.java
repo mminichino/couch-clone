@@ -1,6 +1,7 @@
 package com.us.unix.cbclone.couchbase3;
 
 import com.us.unix.cbclone.core.GroupData;
+import com.us.unix.cbclone.core.IndexData;
 import com.us.unix.cbclone.core.TableData;
 import com.us.unix.cbclone.core.UserData;
 import org.junit.jupiter.api.Assertions;
@@ -56,6 +57,9 @@ public class CouchbaseConnectTest {
     for (TableData table : db.getBuckets()) {
       System.out.printf("%s.%s.%s\n", table.getName(), table.getScope().getName(), table.getCollection().getName());
       Assertions.assertNotNull(table.getName());
+      for (IndexData index : table.getIndexes()) {
+        System.out.println(index.getName());
+      }
     }
     for (UserData user : db.getUsers()) {
       System.out.println(user.getId());

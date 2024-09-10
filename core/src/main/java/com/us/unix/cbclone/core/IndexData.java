@@ -1,9 +1,12 @@
 package com.us.unix.cbclone.core;
 
+import java.util.List;
+
 public class IndexData {
   private String column;
   private String table;
   private String name;
+  private List<String> indexKeys;
   private String condition;
   private boolean isPrimary;
 
@@ -17,6 +20,10 @@ public class IndexData {
 
   public String getName() {
     return name;
+  }
+
+  public List<String> getIndexKeys() {
+    return indexKeys;
   }
 
   public String getCondition() {
@@ -37,6 +44,10 @@ public class IndexData {
 
   public void setName(String name) {
     this.name = name;
+  }
+
+  public void setIndexKeys(List<String> indexKeys) {
+    this.indexKeys = indexKeys;
   }
 
   public void setCondition(String condition) {
