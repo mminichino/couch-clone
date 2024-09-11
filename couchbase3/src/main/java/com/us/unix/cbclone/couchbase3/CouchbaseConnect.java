@@ -612,6 +612,9 @@ public final class CouchbaseConnect {
           continue;
         }
       }
+      if (index.has("using") && !index.get("using").asText().equals("gsi")) {
+        continue;
+      }
       if (index.has("is_primary") && index.get("is_primary").asBoolean()) {
         IndexData i = new IndexData();
         i.setTable(index.get("keyspace_id").asText());
