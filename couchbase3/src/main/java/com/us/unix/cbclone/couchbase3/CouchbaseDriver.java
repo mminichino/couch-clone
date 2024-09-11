@@ -45,16 +45,6 @@ public class CouchbaseDriver extends DatabaseDriver {
   }
 
   @Override
-  public void connectToTable(TableData table) {
-    CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
-    db = dbBuilder
-        .host(hostname)
-        .username(username)
-        .password(password)
-        .build();
-  }
-
-  @Override
   public List<TableData> exportTables() {
     return db.getBuckets();
   }
@@ -80,7 +70,7 @@ public class CouchbaseDriver extends DatabaseDriver {
 
   @Override
   public void importTables(List<TableData> tables) {
-
+    db.createBuckets(tables);
   }
 
   @Override

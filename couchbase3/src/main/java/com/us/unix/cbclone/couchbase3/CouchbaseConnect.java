@@ -396,6 +396,22 @@ public final class CouchbaseConnect {
     bucketCreate(name, quota);
   }
 
+  public void createBucket(BucketData bucketData) {
+    BucketSettings bucketSettings = BucketSettings.create(bucketData.getName())
+        .flushEnabled(false)
+        .replicaIndexes(true)
+        .ramQuotaMB(bucketData.getQuota())
+        .numReplicas(bucketData.getReplicas())
+        .bucketType(BucketType.valueOf(bucketData.getType()))
+        .storageBackend(StorageBackend.of(bucketData.getStorage()))
+        .conflictResolutionType(ConflictResolutionType.valueOf(bucketData.getResolution()));
+    try {
+      bucketMgr.createBucket(bucketSettings);
+    } catch (BucketExistsException e) {
+      LOGGER.info("createBucket: Bucket {} already exists", bucketData.getName());
+    }
+  }
+
   public void bucketCreate(String name, int quota) {
     BucketSettings bucketSettings = BucketSettings.create(name)
         .flushEnabled(false)
@@ -408,7 +424,7 @@ public final class CouchbaseConnect {
     try {
       bucketMgr.createBucket(bucketSettings);
     } catch (BucketExistsException e) {
-      LOGGER.info("Create: Bucket {} already exists", name);
+      LOGGER.info("bucketCreate: Bucket {} already exists", name);
     }
   }
 
@@ -769,5 +785,12 @@ public final class CouchbaseConnect {
       throw new RuntimeException(e);
     }
     return result;
+  }
+
+  public void createBuckets(List<TableData> buckets) {
+    for (TableData bucket : buckets) {
+      System.out.printf("Creating bucket %s%n", bucket.getName());
+      createBucket(bucket.getBucket());
+    }
   }
 }

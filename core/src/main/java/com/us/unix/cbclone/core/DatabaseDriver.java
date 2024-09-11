@@ -110,10 +110,6 @@ public abstract class DatabaseDriver {
 
   public abstract void initDb(Properties properties);
 
-  public abstract void connectToTable(TableData table);
-
-//  public abstract List<String> listTables();
-
   public abstract List<TableData> exportTables();
 
   public abstract List<UserData> exportUsers();

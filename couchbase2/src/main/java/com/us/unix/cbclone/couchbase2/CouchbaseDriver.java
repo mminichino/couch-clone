@@ -47,18 +47,6 @@ public class CouchbaseDriver extends DatabaseDriver {
   }
 
   @Override
-  public void connectToTable(TableData table) {
-    CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
-    db = dbBuilder
-        .host(hostname)
-        .username(username)
-        .password(password)
-        .bucketPassword(table.getPassword())
-        .legacyAuth(legacyAuth)
-        .build();
-  }
-
-  @Override
   public List<TableData> exportTables() {
     return db.getBuckets();
   }
