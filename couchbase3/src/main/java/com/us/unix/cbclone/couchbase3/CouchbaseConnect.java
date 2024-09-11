@@ -474,6 +474,19 @@ public final class CouchbaseConnect {
     queryIndexMgr.watchIndexes(Collections.singletonList(indexName), Duration.ofSeconds(10));
   }
 
+  public void createSearchIndex(JsonNode config) {
+    if (cluster == null) {
+      throw new RuntimeException("Cluster is not connected");
+    }
+    SearchIndexManager search = cluster.searchIndexes();
+    try {
+      search.getIndex(config.get("name").asText());
+    } catch (IndexNotFoundException e) {
+      SearchIndex index = SearchIndex.fromJson(config.toString());
+      search.upsertIndex(index);
+    }
+  }
+
   public Set<Role> defaultRoles() {
     return new HashSet<>(List.of(
         new Role("data_reader", "*"),
