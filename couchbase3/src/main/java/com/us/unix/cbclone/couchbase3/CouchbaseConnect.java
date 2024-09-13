@@ -421,7 +421,9 @@ public final class CouchbaseConnect {
       bucketMgr.createBucket(bucketSettings);
     } catch (BucketExistsException e) {
       LOGGER.info("createBucket: Bucket {} already exists", bucketData.getName());
+      return;
     }
+    System.out.printf("Created bucket %s%n", bucketData.getName());
   }
 
   public void bucketCreate(String name, int quota) {
@@ -458,8 +460,10 @@ public final class CouchbaseConnect {
     try {
       collectionManager.createScope(scopeName);
     } catch (ScopeExistsException e) {
-      LOGGER.info(String.format("Scope %s already exists in cluster", scopeName));
+      LOGGER.info("Scope {} already exists in cluster", scopeName);
+      return;
     }
+    System.out.printf("Created scope %s.%s%n", bucketName, scopeName);
   }
 
   public void createCollection(String bucketName, String scopeName, String collectionName) {
@@ -472,8 +476,10 @@ public final class CouchbaseConnect {
     try {
       collectionManager.createCollection(scopeName, collectionName);
     } catch (CollectionExistsException e) {
-      LOGGER.info(String.format("Collection %s already exists in cluster", collectionName));
+      LOGGER.info("Collection {} already exists in cluster", collectionName);
+      return;
     }
+    System.out.printf("Created collection %s.%s.%s%n", bucketName, scopeName, collectionName);
   }
 
   public void createPrimaryIndex(int replicaCount) {
@@ -576,7 +582,7 @@ public final class CouchbaseConnect {
       throw new RuntimeException("Collection is not connected");
     }
     try {
-      collection.upsert(id, content, upsertOptions().expiry(Duration.ofSeconds(ttlSeconds)));
+      collection.upsert(id, content, upsertOptions().expiry(Duration.ofSeconds(ttlSeconds)).timeout(Duration.ofSeconds(5)));
     } catch (Exception e) {
       LOGGER.error(e.getMessage(), e);
       throw new RuntimeException(e);
@@ -804,17 +810,11 @@ public final class CouchbaseConnect {
       String bucketName = bucket.getName();
       String scopeName = bucket.getScope().getName();
       String collectionName = bucket.getCollection().getName();
-      if (isBucket(bucketName)) {
-        continue;
-      }
-      System.out.printf("Creating bucket %s%n", bucketName);
       createBucket(bucket.getBucket());
       if (!Objects.equals(scopeName, "_default")) {
-        System.out.printf("Creating scope %s.%s%n", bucketName, scopeName);
         createScope(bucketName, scopeName);
       }
       if (!Objects.equals(collectionName, "_default")) {
-        System.out.printf("Creating collection %s.%s.%s%n", bucketName, scopeName, collectionName);
         createCollection(bucketName, scopeName, collectionName);
       }
     }
