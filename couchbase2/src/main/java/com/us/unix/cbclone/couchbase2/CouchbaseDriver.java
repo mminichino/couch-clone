@@ -87,7 +87,7 @@ public class CouchbaseDriver extends DatabaseDriver {
   }
 
   @Override
-  public void importData(FileReader reader, TableData table) {
+  public void importData(FileReader reader, String table) {
 
   }
 }

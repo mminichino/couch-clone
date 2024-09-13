@@ -1,5 +1,7 @@
 package com.us.unix.cbclone.couchbase3;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.us.unix.cbclone.core.*;
 
 import java.io.Writer;
@@ -84,7 +86,24 @@ public class CouchbaseDriver extends DatabaseDriver {
   }
 
   @Override
-  public void importData(FileReader reader, TableData table) {
-
+  public void importData(FileReader reader, String table) {
+    ObjectMapper mapper = new ObjectMapper();
+    String[] keyspace = table.split("\\.");
+    String bucketName = keyspace[0];
+    String scopeName = keyspace[1];
+    String collectionName = keyspace[2];
+    System.out.printf("Importing keyspace %s%n", table);
+    db.connectBucket(bucketName);
+    db.connectScope(scopeName);
+    db.connectCollection(collectionName);
+    try {
+      for (String line = reader.readLine(); line != null && !line.equals("__END__"); line = reader.readLine()) {
+        JsonNode node = mapper.readTree(line);
+        String id = node.get("metadata").get("id").asText();
+        db.upsert(id, node.get("document"));
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 }

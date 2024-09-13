@@ -85,6 +85,8 @@ public final class CouchbaseConnect {
   private String database;
   private boolean external;
   private String bucketName;
+  private String scopeName;
+  private String collectionName;
   private final Boolean useSsl;
   public int adminPort;
   public int eventingPort;
@@ -380,6 +382,16 @@ public final class CouchbaseConnect {
   public void connectBucket(String name) {
     this.bucketName = name;
     bucket = cluster.bucket(bucketName);
+  }
+
+  public void connectScope(String scopeName) {
+    this.scopeName = scopeName;
+    scope = bucket.scope(scopeName);
+  }
+
+  public void connectCollection(String collectionName) {
+    this.collectionName = collectionName;
+    collection = scope.collection(collectionName);
   }
 
   public void createBucket(String name) {
@@ -789,8 +801,22 @@ public final class CouchbaseConnect {
 
   public void createBuckets(List<TableData> buckets) {
     for (TableData bucket : buckets) {
-      System.out.printf("Creating bucket %s%n", bucket.getName());
+      String bucketName = bucket.getName();
+      String scopeName = bucket.getScope().getName();
+      String collectionName = bucket.getCollection().getName();
+      if (isBucket(bucketName)) {
+        continue;
+      }
+      System.out.printf("Creating bucket %s%n", bucketName);
       createBucket(bucket.getBucket());
+      if (!Objects.equals(scopeName, "_default")) {
+        System.out.printf("Creating scope %s.%s%n", bucketName, scopeName);
+        createScope(bucketName, scopeName);
+      }
+      if (!Objects.equals(collectionName, "_default")) {
+        System.out.printf("Creating collection %s.%s.%s%n", bucketName, scopeName, collectionName);
+        createCollection(bucketName, scopeName, collectionName);
+      }
     }
   }
 }

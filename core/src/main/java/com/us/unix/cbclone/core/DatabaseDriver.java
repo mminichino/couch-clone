@@ -9,10 +9,20 @@ public abstract class DatabaseDriver {
   private final Properties properties = new Properties();
   public FileWriter writer;
   public FileReader reader;
-  public String session = "dbdump";
-  public boolean overwrite = false;
+  public String session;
+  public boolean exportMode;
+  public boolean overwrite;
   public List<TableData> tables;
   public String tableName;
+
+  public static final String SESSION_MODE = "cbclone.mode";
+  public static final String SESSION_MODE_DEFAULT = "export";
+
+  public static final String SESSION_PROPERTY = "cbclone.sessionName";
+  public static final String SESSION_PROPERTY_DEFAULT = "dbclone";
+
+  public static final String OVERWRITE_PROPERTY = "cbclone.overwrite";
+  public static final String OVERWRITE_PROPERTY_DEFAULT = "true";
 
   public Properties getProperties() {
     return properties;
@@ -23,9 +33,18 @@ public abstract class DatabaseDriver {
   }
 
   public void init(Properties properties) {
+    session = properties.getProperty(SESSION_PROPERTY, SESSION_PROPERTY_DEFAULT);
+    overwrite = properties.getProperty(OVERWRITE_PROPERTY, OVERWRITE_PROPERTY_DEFAULT).equals("true");
+    exportMode = properties.getProperty(SESSION_MODE, SESSION_MODE_DEFAULT).equals("export");
+
+    System.out.printf("Starting %s session with file %s%n", exportMode ? "export" : "import", session);
     this.properties.putAll(properties);
     this.initDb(this.properties);
-    this.writer = new FileWriter(session, overwrite);
+    if (exportMode) {
+      this.writer = new FileWriter(session, overwrite);
+    } else {
+      this.reader = new FileReader(session);
+    }
   }
 
   public void writeHeader() {
@@ -59,6 +78,7 @@ public abstract class DatabaseDriver {
       this.writer.startDataStream(tableFullName);
       Writer writer = this.writer.getWriter();
       exportData(writer, table);
+      this.writer.endDataStream();
     }
   }
 
@@ -67,7 +87,8 @@ public abstract class DatabaseDriver {
   }
 
   public void readTables() {
-    importTables(this.reader.readTables());
+    tables = this.reader.readTables();
+    importTables(tables);
   }
 
   public void readUsers() {
@@ -80,11 +101,7 @@ public abstract class DatabaseDriver {
 
   public void readData() {
     for (String tableName = this.reader.startDataStream(); tableName != null; tableName = this.reader.startDataStream()) {
-      TableData table = TableData.inList(tables, tableName);
-      if (table == null) {
-        throw new RuntimeException("Table not found: " + tableName);
-      }
-      importData(this.reader, table);
+      importData(this.reader, tableName);
     }
   }
 
@@ -98,6 +115,7 @@ public abstract class DatabaseDriver {
     writeUsers();
     writeGroups();
     writeData();
+    writer.close();
   }
 
   public void importDatabase() {
@@ -106,6 +124,7 @@ public abstract class DatabaseDriver {
     readUsers();
     readGroups();
     readData();
+    reader.close();
   }
 
   public abstract void initDb(Properties properties);
@@ -124,5 +143,5 @@ public abstract class DatabaseDriver {
 
   public abstract void importGroups(List<GroupData> groups);
 
-  public abstract void importData(FileReader reader, TableData table);
+  public abstract void importData(FileReader reader, String table);
 }

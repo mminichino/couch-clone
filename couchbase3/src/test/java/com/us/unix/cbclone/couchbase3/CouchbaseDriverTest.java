@@ -45,7 +45,7 @@ public class CouchbaseDriverTest {
 
     DatabaseDriver driver = new CouchbaseDriver();
 
-//    driver.init(properties);
-//    driver.importDatabase();
+    driver.init(properties);
+    driver.importDatabase();
   }
 }
