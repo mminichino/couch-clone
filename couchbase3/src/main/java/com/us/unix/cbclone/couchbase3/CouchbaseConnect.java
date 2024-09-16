@@ -401,6 +401,13 @@ public final class CouchbaseConnect {
     collection = scope.collection(collectionName);
   }
 
+  public ReactiveCollection reactiveCollection() {
+    if (collection == null) {
+      throw new RuntimeException("Collection is not connected");
+    }
+    return collection.reactive();
+  }
+
   public void createBucket(String name) {
     int quota = getMemQuota();
     bucketCreate(name, quota);
