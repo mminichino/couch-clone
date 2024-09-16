@@ -90,4 +90,9 @@ public class CouchbaseDriver extends DatabaseDriver {
   public void importData(FileReader reader, String table) {
 
   }
+
+  @Override
+  public void cleanDb() {
+
+  }
 }

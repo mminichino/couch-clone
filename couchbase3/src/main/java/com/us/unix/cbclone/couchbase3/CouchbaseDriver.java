@@ -27,12 +27,12 @@ public class CouchbaseDriver extends DatabaseDriver {
   public static final String DEFAULT_LEGACY_AUTH = "false";
   public static final String DEFAULT_HOSTNAME = "127.0.0.1";
   public static final String DEFAULT_BUCKET = "default";
+  public static final String ENABLE_DEBUG = "couchbase.debug";
+  public static final String ENABLE_DEBUG_DEFAULT = "false";
   public String hostname;
   public String username;
   public String password;
   public String bucket;
-  public boolean legacyAuth;
-  public String bucketPassword;
   public static volatile CouchbaseConnect db;
   public static volatile CouchbaseStream stream;
 
@@ -45,14 +45,14 @@ public class CouchbaseDriver extends DatabaseDriver {
     hostname = properties.getProperty(CLUSTER_HOST, DEFAULT_HOSTNAME);
     username = properties.getProperty(CLUSTER_USER, DEFAULT_USER);
     password = properties.getProperty(CLUSTER_PASSWORD, DEFAULT_PASSWORD);
-    bucketPassword = properties.getProperty(BUCKET_PASSWORD, DEFAULT_BUCKET_PASSWORD);
-    legacyAuth = Boolean.parseBoolean(properties.getProperty(LEGACY_AUTH, DEFAULT_LEGACY_AUTH));
+    boolean debug = getProperties().getProperty(ENABLE_DEBUG, ENABLE_DEBUG_DEFAULT).equals("true");
 
     CouchbaseConnect.CouchbaseBuilder dbBuilder = new CouchbaseConnect.CouchbaseBuilder();
     db = dbBuilder
         .host(hostname)
         .username(username)
         .password(password)
+        .enableDebug(debug)
         .build();
   }
 
@@ -95,6 +95,14 @@ public class CouchbaseDriver extends DatabaseDriver {
 
   }
 
+  @Override
+  public void cleanDb() {
+    for (String bucket : db.listBuckets()) {
+      LOGGER.info("Removing bucket {}", bucket);
+      db.dropBucket(bucket);
+    }
+  }
+
   public void taskAdd(Callable<Status> task) {
     tasks.add(executor.submit(task));
   }
@@ -131,7 +139,7 @@ public class CouchbaseDriver extends DatabaseDriver {
     String bucketName = keyspace[0];
     String scopeName = keyspace[1];
     String collectionName = keyspace[2];
-    System.out.printf("Importing keyspace %s%n", table);
+    LOGGER.info("Importing keyspace {}", table);
     db.connectBucket(bucketName);
     db.connectScope(scopeName);
     db.connectCollection(collectionName);

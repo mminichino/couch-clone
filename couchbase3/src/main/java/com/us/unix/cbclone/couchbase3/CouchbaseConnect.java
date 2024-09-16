@@ -1,17 +1,19 @@
 package com.us.unix.cbclone.couchbase3;
 
-import com.couchbase.client.core.config.AlternateAddress;
-import com.couchbase.client.core.env.*;
+import com.couchbase.client.core.env.SecurityConfig;
+import com.couchbase.client.core.env.IoConfig;
+import com.couchbase.client.core.env.NetworkResolution;
+import com.couchbase.client.core.env.TimeoutConfig;
+import com.couchbase.client.core.env.Authenticator;
+import com.couchbase.client.core.env.CertificateAuthenticator;
+import com.couchbase.client.core.env.PasswordAuthenticator;
 import com.couchbase.client.core.error.*;
-import com.couchbase.client.core.msg.kv.DurabilityLevel;
-import com.couchbase.client.core.config.PortInfo;
 import com.couchbase.client.java.*;
 import com.couchbase.client.java.Collection;
 import com.couchbase.client.java.codec.RawJsonTranscoder;
 import com.couchbase.client.java.codec.TypeRef;
 import com.couchbase.client.java.env.ClusterEnvironment;
 import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import com.couchbase.client.java.http.CouchbaseHttpClient;
 import com.couchbase.client.java.http.HttpPath;
 import com.couchbase.client.java.http.HttpResponse;
 import com.couchbase.client.java.http.HttpTarget;
@@ -23,9 +25,7 @@ import com.couchbase.client.java.manager.collection.ScopeSpec;
 import com.couchbase.client.java.manager.query.CollectionQueryIndexManager;
 import com.couchbase.client.java.manager.query.CreatePrimaryQueryIndexOptions;
 import com.couchbase.client.java.manager.query.CreateQueryIndexOptions;
-import static com.couchbase.client.java.kv.MutateInSpec.arrayAppend;
 import static com.couchbase.client.java.kv.UpsertOptions.upsertOptions;
-import static com.couchbase.client.java.kv.MutateInOptions.mutateInOptions;
 import static com.couchbase.client.java.kv.GetOptions.getOptions;
 import static com.couchbase.client.java.query.QueryOptions.queryOptions;
 
@@ -41,6 +41,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.us.unix.cbclone.core.*;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,12 +114,10 @@ public final class CouchbaseConnect {
     private String hostname = DEFAULT_HOSTNAME;
     private String username = DEFAULT_USER;
     private String password = DEFAULT_PASSWORD;
-    private String bucketPass = DEFAULT_BUCKET_PASSWORD;
     private String rootCert;
     private String clientCert;
     private KeyStoreType keyStoreType = KeyStoreType.PKCS12;
     private Boolean sslMode = DEFAULT_SSL_MODE;
-    private Boolean legacyAuth = false;
     private Boolean enableDebug = false;
     private String bucketName;
     private int bucketReplicas = 1;
@@ -139,11 +142,6 @@ public final class CouchbaseConnect {
 
     public CouchbaseBuilder password(final String name) {
       this.password = name;
-      return this;
-    }
-
-    public CouchbaseBuilder bucketPassword(final String name) {
-      this.bucketPass = name;
       return this;
     }
 
@@ -219,6 +217,15 @@ public final class CouchbaseConnect {
     bucketType = builder.bucketType;
     bucketStorage = builder.bucketStorage;
     maxParallelism = 0;
+
+    if (enableDebug) {
+      LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+      Configuration config = ctx.getConfiguration();
+      LoggerConfig loggerConfig = config.getLoggerConfig(CouchbaseConnect.class.getName());
+      loggerConfig.setLevel(Level.DEBUG);
+      ctx.updateLoggers();
+    }
+
     connect();
   }
 
@@ -420,10 +427,10 @@ public final class CouchbaseConnect {
     try {
       bucketMgr.createBucket(bucketSettings);
     } catch (BucketExistsException e) {
-      LOGGER.info("createBucket: Bucket {} already exists", bucketData.getName());
+      LOGGER.debug("createBucket: Bucket {} already exists", bucketData.getName());
       return;
     }
-    System.out.printf("Created bucket %s%n", bucketData.getName());
+    LOGGER.info("Created bucket {}", bucketData.getName());
   }
 
   public void bucketCreate(String name, int quota) {
@@ -438,7 +445,7 @@ public final class CouchbaseConnect {
     try {
       bucketMgr.createBucket(bucketSettings);
     } catch (BucketExistsException e) {
-      LOGGER.info("bucketCreate: Bucket {} already exists", name);
+      LOGGER.debug("bucketCreate: Bucket {} already exists", name);
     }
   }
 
@@ -446,7 +453,7 @@ public final class CouchbaseConnect {
     try {
       bucketMgr.dropBucket(name);
     } catch (BucketNotFoundException e) {
-      LOGGER.info("Drop: Bucket {} does not exist", name);
+      LOGGER.debug("Drop: Bucket {} does not exist", name);
     }
   }
 
@@ -460,10 +467,10 @@ public final class CouchbaseConnect {
     try {
       collectionManager.createScope(scopeName);
     } catch (ScopeExistsException e) {
-      LOGGER.info("Scope {} already exists in cluster", scopeName);
+      LOGGER.debug("Scope {} already exists in cluster", scopeName);
       return;
     }
-    System.out.printf("Created scope %s.%s%n", bucketName, scopeName);
+    LOGGER.info("Created scope {}.{}", bucketName, scopeName);
   }
 
   public void createCollection(String bucketName, String scopeName, String collectionName) {
@@ -476,10 +483,10 @@ public final class CouchbaseConnect {
     try {
       collectionManager.createCollection(scopeName, collectionName);
     } catch (CollectionExistsException e) {
-      LOGGER.info("Collection {} already exists in cluster", collectionName);
+      LOGGER.debug("Collection {} already exists in cluster", collectionName);
       return;
     }
-    System.out.printf("Created collection %s.%s.%s%n", bucketName, scopeName, collectionName);
+    LOGGER.info("Created collection {}.{}.{}", bucketName, scopeName, collectionName);
   }
 
   public void createPrimaryIndex(int replicaCount) {
@@ -641,7 +648,7 @@ public final class CouchbaseConnect {
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     } catch (ServiceNotAvailableException e) {
-      LOGGER.info("Search service is not configured in the cluster");
+      LOGGER.debug("Search service is not configured in the cluster");
     }
     return result;
   }

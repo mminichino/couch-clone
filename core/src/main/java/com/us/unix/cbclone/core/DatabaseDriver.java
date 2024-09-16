@@ -1,11 +1,14 @@
 package com.us.unix.cbclone.core;
 
-import java.io.BufferedReader;
 import java.io.Writer;
 import java.util.List;
 import java.util.Properties;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public abstract class DatabaseDriver {
+  static final Logger LOGGER = LoggerFactory.getLogger(DatabaseDriver.class);
   private final Properties properties = new Properties();
   public FileWriter writer;
   public FileReader reader;
@@ -37,7 +40,7 @@ public abstract class DatabaseDriver {
     overwrite = properties.getProperty(OVERWRITE_PROPERTY, OVERWRITE_PROPERTY_DEFAULT).equals("true");
     exportMode = properties.getProperty(SESSION_MODE, SESSION_MODE_DEFAULT).equals("export");
 
-    System.out.printf("Starting %s session with file %s%n", exportMode ? "export" : "import", session);
+    LOGGER.info("Starting {} session with file {}", exportMode ? "export" : "import", session);
     this.properties.putAll(properties);
     this.initDb(this.properties);
     if (exportMode) {
@@ -144,4 +147,6 @@ public abstract class DatabaseDriver {
   public abstract void importGroups(List<GroupData> groups);
 
   public abstract void importData(FileReader reader, String table);
+
+  public abstract void cleanDb();
 }
