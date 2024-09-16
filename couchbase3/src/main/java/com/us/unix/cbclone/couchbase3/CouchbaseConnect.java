@@ -17,7 +17,6 @@ import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustMan
 import com.couchbase.client.java.http.HttpPath;
 import com.couchbase.client.java.http.HttpResponse;
 import com.couchbase.client.java.http.HttpTarget;
-import com.couchbase.client.java.kv.*;
 import com.couchbase.client.java.manager.bucket.*;
 import com.couchbase.client.java.manager.collection.CollectionManager;
 import com.couchbase.client.java.manager.collection.CollectionSpec;
@@ -40,7 +39,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.us.unix.cbclone.core.*;
+import static com.us.unix.cbclone.core.RetryLogic.retryVoid;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -56,6 +58,8 @@ import java.security.KeyStore;
 import java.time.Duration;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Couchbase Connection Utility.
@@ -106,6 +110,7 @@ public final class CouchbaseConnect {
   public int buildNumber;
   public String clusterEdition;
   private final boolean enableDebug;
+  private final ArrayNode hostMap = mapper.createArrayNode();
 
   /**
    * Builder Class.
@@ -362,9 +367,34 @@ public final class CouchbaseConnect {
       majorRevision = Integer.parseInt(clusterVersion.split("\\.")[0]);
       minorRevision = Integer.parseInt(clusterVersion.split("\\.")[1]);
       patchRevision = Integer.parseInt(clusterVersion.split("\\.")[2]);
+
+      for (JsonNode node : clusterInfo.get("nodes")) {
+        String hostEntry = node.get("hostname").asText();
+        String[] endpoint = hostEntry.split(":", 2);
+        String hostname = endpoint[0];
+        JsonNode services = node.get("services");
+
+        ObjectNode entry = mapper.createObjectNode();
+        entry.put("hostname", hostname);
+        entry.set("services", services);
+
+        hostMap.add(entry);
+      }
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public long getIndexNodeCount() {
+    Stream<JsonNode> stream = StreamSupport.stream(hostMap.spliterator(), false);
+    return stream.filter(e -> {
+      try {
+        List<String> services = mapper.readerForListOf(String.class).readValue(e.get("services"));
+        return services.contains("index");
+      } catch (IOException ex) {
+        return false;
+      }
+    }).count();
   }
 
   private int getMemQuota() {
@@ -496,22 +526,38 @@ public final class CouchbaseConnect {
     LOGGER.info("Created collection {}.{}.{}", bucketName, scopeName, collectionName);
   }
 
-  public void createPrimaryIndex(int replicaCount) {
-    if (collection == null) {
-      throw new RuntimeException("Collection is not connected");
+  public boolean collectionExists(String bucketName, String scopeName, String collectionName) {
+    Bucket bucket = cluster.bucket(bucketName);
+    try {
+      Scope scope = bucket.scope(scopeName);
+      scope.collection(collectionName);
+      return true;
+    } catch (CollectionNotFoundException e) {
+      return false;
     }
+  }
+
+  public void createPrimaryIndex(String bucketName, String scopeName, String collectionName, int replicaCount) {
+    Bucket bucket = cluster.bucket(bucketName);
+    Scope scope = bucket.scope(scopeName);
+    Collection collection = scope.collection(collectionName);
+
     CollectionQueryIndexManager queryIndexMgr = collection.queryIndexes();
     CreatePrimaryQueryIndexOptions options = CreatePrimaryQueryIndexOptions.createPrimaryQueryIndexOptions()
         .deferred(false)
         .numReplicas(replicaCount)
         .ignoreIfExists(true);
+
     queryIndexMgr.createPrimaryIndex(options);
+    LOGGER.info("Created primary index on keyspace {}.{}.{}", bucketName, scopeName, collectionName);
   }
 
-  public void createSecondaryIndex(String indexName, List<String> indexKeys, int replicaCount) {
-    if (collection == null) {
-      throw new RuntimeException("Collection is not connected");
-    }
+  public void createSecondaryIndex(String bucketName, String scopeName, String collectionName, String indexName,
+                                   List<String> indexKeys, int replicaCount) {
+    Bucket bucket = cluster.bucket(bucketName);
+    Scope scope = bucket.scope(scopeName);
+    Collection collection = scope.collection(collectionName);
+
     CollectionQueryIndexManager queryIndexMgr = collection.queryIndexes();
     CreateQueryIndexOptions options = CreateQueryIndexOptions.createQueryIndexOptions()
         .deferred(false)
@@ -520,6 +566,7 @@ public final class CouchbaseConnect {
 
     queryIndexMgr.createIndex(indexName, indexKeys, options);
     queryIndexMgr.watchIndexes(Collections.singletonList(indexName), Duration.ofSeconds(10));
+    LOGGER.info("Created secondary index {} on keyspace {}.{}.{}", indexName, bucketName, scopeName, collectionName);
   }
 
   public void createSearchIndex(JsonNode config) {
@@ -546,16 +593,24 @@ public final class CouchbaseConnect {
     ));
   }
 
-  public void createUser(String username, String password, Set<String> groups, Set<Role> roles) {
+  public void createUser(String username, String password, List<String> groups, List<RoleData> roles) {
     UserManager um = cluster.users();
     User user = new User(username);
     if (!groups.isEmpty()) {
       user.groups(groups);
-    } else if (roles.isEmpty()) {
-      roles.addAll(defaultRoles());
     }
-    if (!roles.isEmpty()) {
-      user.roles(roles);
+    if (roles.isEmpty()) {
+      user.roles(defaultRoles());
+    } else {
+      List<Role> roleList = new ArrayList<>();
+      for (RoleData roleData : roles) {
+        Role role = new Role(roleData.getRole(),
+            roleData.getBucketName(),
+            roleData.getScopeName(),
+            roleData.getCollectionName());
+        roleList.add(role);
+      }
+      user.roles(roleList);
     }
     if (password != null && !password.isEmpty()) {
       user.password(password);
@@ -563,16 +618,24 @@ public final class CouchbaseConnect {
     um.upsertUser(user);
   }
 
-  public void createGroup(String groupName, String description, Set<Role> roles) {
+  public void createGroup(String groupName, String description, List<RoleData> roles) {
     UserManager um = cluster.users();
     Group group = new Group(groupName);
     if (description != null && !description.isEmpty()) {
       group.description(description);
     }
-    if (!roles.isEmpty()) {
-      group.roles(roles);
+    if (roles.isEmpty()) {
+      group.roles(defaultRoles());
     } else {
-      roles.addAll(defaultRoles());
+      List<Role> roleList = new ArrayList<>();
+      for (RoleData roleData : roles) {
+        Role role = new Role(roleData.getRole(),
+            roleData.getBucketName(),
+            roleData.getScopeName(),
+            roleData.getCollectionName());
+        roleList.add(role);
+      }
+      group.roles(roleList);
     }
     um.upsertGroup(group);
   }
@@ -663,6 +726,7 @@ public final class CouchbaseConnect {
   public List<IndexData> getIndexes(String bucket, String collection) {
     List<JsonNode> indexes = query("SELECT * FROM system:indexes;");
     List<IndexData> result = new ArrayList<>();
+    int replicas = -1;
     for (JsonNode index : indexes) {
       if (collection.equals("_default")) {
         if (!index.get("keyspace_id").asText().equals(bucket)) {
@@ -676,10 +740,16 @@ public final class CouchbaseConnect {
       if (index.has("using") && !index.get("using").asText().equals("gsi")) {
         continue;
       }
+      if (index.has("metadata")) {
+        if (index.get("metadata").has("num_replica")) {
+          replicas = index.get("metadata").get("num_replica").asInt();
+        }
+      }
       if (index.has("is_primary") && index.get("is_primary").asBoolean()) {
         IndexData i = new IndexData();
         i.setTable(index.get("keyspace_id").asText());
         i.setName(index.get("name").asText());
+        i.setNumReplicas(replicas);
         i.setPrimary(true);
         result.add(i);
       } else {
@@ -687,6 +757,7 @@ public final class CouchbaseConnect {
         i.setIndexKeys(getStringList(index.get("index_key")));
         i.setTable(index.get("keyspace_id").asText());
         i.setName(index.get("name").asText());
+        i.setNumReplicas(replicas);
         i.setCondition(index.has("condition") ? index.get("condition").asText() : "");
         result.add(i);
       }
@@ -745,9 +816,9 @@ public final class CouchbaseConnect {
   public RoleData parseRole(JsonNode role) {
     RoleData r = new RoleData();
     r.setRole(role.get("role").asText());
-    r.setBucketName(role.has("bucket_name") ? role.get("bucket_name").asText() : null);
-    r.setScopeName(role.has("scope_name") ? role.get("scope_name").asText() : null);
-    r.setCollectionName(role.has("collection_name") ? role.get("collection_name").asText() : null);
+    r.setBucketName(role.has("bucket_name") ? role.get("bucket_name").asText() : "*");
+    r.setScopeName(role.has("scope_name") ? role.get("scope_name").asText() : "*");
+    r.setCollectionName(role.has("collection_name") ? role.get("collection_name").asText() : "*");
     return r;
   }
 
@@ -830,6 +901,22 @@ public final class CouchbaseConnect {
       }
       if (!Objects.equals(collectionName, "_default")) {
         createCollection(bucketName, scopeName, collectionName);
+      }
+      for (IndexData index : bucket.getIndexes()) {
+        int replicas = index.getNumReplicas();
+        if (replicas < 0) {
+          replicas = (int) getIndexNodeCount();
+        }
+        final int replicaNum = replicas;
+        try {
+          if (index.isPrimary()) {
+            retryVoid(() -> createPrimaryIndex(bucketName, scopeName, collectionName, replicaNum));
+          } else {
+            retryVoid(() -> createSecondaryIndex(bucketName, scopeName, collectionName, index.getName(), index.getIndexKeys(), replicaNum));
+          }
+        } catch (Exception e) {
+          throw new RuntimeException("Index creation failed: " + e.getMessage(), e);
+        }
       }
     }
   }

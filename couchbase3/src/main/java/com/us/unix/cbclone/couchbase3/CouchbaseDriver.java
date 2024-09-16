@@ -24,13 +24,9 @@ public class CouchbaseDriver extends DatabaseDriver {
   public static final String CLUSTER_HOST = "couchbase.hostname";
   public static final String CLUSTER_USER = "couchbase.username";
   public static final String CLUSTER_PASSWORD = "couchbase.password";
-  public static final String BUCKET_PASSWORD = "couchbase.bucketPassword";
-  public static final String LEGACY_AUTH = "couchbase.legacyAuth";
   public static final String CLUSTER_BUCKET = "couchbase.bucket";
   public static final String DEFAULT_USER = "Administrator";
   public static final String DEFAULT_PASSWORD = "password";
-  public static final String DEFAULT_BUCKET_PASSWORD = "";
-  public static final String DEFAULT_LEGACY_AUTH = "false";
   public static final String DEFAULT_HOSTNAME = "127.0.0.1";
   public static final String DEFAULT_BUCKET = "default";
   public static final String BATCH_SIZE = "couchbase.batchSize";
@@ -44,11 +40,7 @@ public class CouchbaseDriver extends DatabaseDriver {
   public int batchSize = 100;
   public static volatile CouchbaseConnect db;
   public static volatile CouchbaseStream stream;
-
-  private final List<Future<Status>> tasks = new ArrayList<>();
-  private final ExecutorService executor = Executors.newFixedThreadPool(32);
   private final PriorityBlockingQueue<Throwable> errorQueue = new PriorityBlockingQueue<>();
-
   private final ObjectMapper mapper = new ObjectMapper();
 
   @Override
@@ -99,12 +91,18 @@ public class CouchbaseDriver extends DatabaseDriver {
 
   @Override
   public void importUsers(List<UserData> users) {
-
+    for (UserData user : users) {
+      LOGGER.info("Importing user {}", user.getName());
+      db.createUser(user.getName(), user.getPassword(), user.getGroups(), user.getRoles());
+    }
   }
 
   @Override
   public void importGroups(List<GroupData> groups) {
-
+    for (GroupData group : groups) {
+      LOGGER.info("Importing group {}", group.getId());
+      db.createGroup(group.getId(), group.getDescription(), group.getRoles());
+    }
   }
 
   @Override
@@ -112,36 +110,6 @@ public class CouchbaseDriver extends DatabaseDriver {
     for (String bucket : db.listBuckets()) {
       LOGGER.info("Removing bucket {}", bucket);
       db.dropBucket(bucket);
-    }
-  }
-
-  public void taskAdd(Callable<Status> task) {
-    tasks.add(executor.submit(task));
-  }
-
-  public boolean taskWait() {
-    boolean status = true;
-    for (Future<Status> future : tasks) {
-      try {
-        future.get();
-      } catch (InterruptedException | ExecutionException e) {
-        LOGGER.error(e.getMessage(), e);
-        status = false;
-      }
-    }
-    tasks.clear();
-    return status;
-  }
-
-  public Status upsertDocument(String record) {
-    ObjectMapper mapper = new ObjectMapper();
-    try {
-      JsonNode node = mapper.readTree(record);
-      String id = node.get("metadata").get("id").asText();
-      db.upsert(id, node.get("document"));
-      return Status.OK;
-    } catch (Exception e) {
-      throw new RuntimeException(e);
     }
   }
 

@@ -403,6 +403,7 @@ public final class CouchbaseConnect {
       if (index.containsKey("is_primary") && index.get("is_primary").toString().equals("true")) {
         IndexData i = new IndexData();
         i.setTable(index.get("keyspace_id").toString());
+        i.setNumReplicas(-1);
         i.setPrimary(true);
         result.add(i);
         continue;
@@ -411,6 +412,7 @@ public final class CouchbaseConnect {
         IndexData i = new IndexData();
         i.setColumn(key.toString().replace("`", ""));
         i.setTable(index.get("keyspace_id").toString());
+        i.setNumReplicas(-1);
         i.setName(index.get("name").toString());
         i.setCondition(index.containsKey("condition") ? index.get("condition").toString() : "");
         result.add(i);

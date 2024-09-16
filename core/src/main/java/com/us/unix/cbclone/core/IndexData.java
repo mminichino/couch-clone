@@ -8,6 +8,7 @@ public class IndexData {
   private String name;
   private List<String> indexKeys;
   private String condition;
+  private int numReplicas;
   private boolean isPrimary;
 
   public String getColumn() {
@@ -28,6 +29,10 @@ public class IndexData {
 
   public String getCondition() {
     return condition;
+  }
+
+  public int getNumReplicas() {
+    return numReplicas;
   }
 
   public boolean isPrimary() {
@@ -52,6 +57,10 @@ public class IndexData {
 
   public void setCondition(String condition) {
     this.condition = condition;
+  }
+
+  public void setNumReplicas(int numReplicas) {
+    this.numReplicas = numReplicas;
   }
 
   public void setPrimary(boolean isPrimary) {
