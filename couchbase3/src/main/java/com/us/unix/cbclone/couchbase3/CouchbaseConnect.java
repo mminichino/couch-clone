@@ -465,9 +465,7 @@ public final class CouchbaseConnect {
       bucketMgr.createBucket(bucketSettings);
     } catch (BucketExistsException e) {
       LOGGER.debug("createBucket: Bucket {} already exists", bucketData.getName());
-      return;
     }
-    LOGGER.info("Created bucket {}", bucketData.getName());
   }
 
   public void bucketCreate(String name, int quota) {
@@ -505,9 +503,7 @@ public final class CouchbaseConnect {
       collectionManager.createScope(scopeName);
     } catch (ScopeExistsException e) {
       LOGGER.debug("Scope {} already exists in cluster", scopeName);
-      return;
     }
-    LOGGER.info("Created scope {}.{}", bucketName, scopeName);
   }
 
   public void createCollection(String bucketName, String scopeName, String collectionName) {
@@ -521,9 +517,7 @@ public final class CouchbaseConnect {
       collectionManager.createCollection(scopeName, collectionName);
     } catch (CollectionExistsException e) {
       LOGGER.debug("Collection {} already exists in cluster", collectionName);
-      return;
     }
-    LOGGER.info("Created collection {}.{}.{}", bucketName, scopeName, collectionName);
   }
 
   public boolean collectionExists(String bucketName, String scopeName, String collectionName) {
@@ -549,7 +543,6 @@ public final class CouchbaseConnect {
         .ignoreIfExists(true);
 
     queryIndexMgr.createPrimaryIndex(options);
-    LOGGER.info("Created primary index on keyspace {}.{}.{}", bucketName, scopeName, collectionName);
   }
 
   public void createSecondaryIndex(String bucketName, String scopeName, String collectionName, String indexName,
@@ -566,7 +559,6 @@ public final class CouchbaseConnect {
 
     queryIndexMgr.createIndex(indexName, indexKeys, options);
     queryIndexMgr.watchIndexes(Collections.singletonList(indexName), Duration.ofSeconds(10));
-    LOGGER.info("Created secondary index {} on keyspace {}.{}.{}", indexName, bucketName, scopeName, collectionName);
   }
 
   public void createSearchIndex(JsonNode config) {
@@ -895,11 +887,14 @@ public final class CouchbaseConnect {
       String bucketName = bucket.getName();
       String scopeName = bucket.getScope().getName();
       String collectionName = bucket.getCollection().getName();
+      LOGGER.info("Creating bucket {}", bucketName);
       createBucket(bucket.getBucket());
       if (!Objects.equals(scopeName, "_default")) {
+        LOGGER.info("Creating scope {}.{}", bucketName, scopeName);
         createScope(bucketName, scopeName);
       }
       if (!Objects.equals(collectionName, "_default")) {
+        LOGGER.info("Creating collection {}.{}.{}", bucketName, scopeName, collectionName);
         createCollection(bucketName, scopeName, collectionName);
       }
       for (IndexData index : bucket.getIndexes()) {
@@ -910,8 +905,10 @@ public final class CouchbaseConnect {
         final int replicaNum = replicas;
         try {
           if (index.isPrimary()) {
+            LOGGER.info("Creating primary index on keyspace {}.{}.{}", bucketName, scopeName, collectionName);
             retryVoid(() -> createPrimaryIndex(bucketName, scopeName, collectionName, replicaNum));
           } else {
+            LOGGER.info("Creating secondary index {} on keyspace {}.{}.{}", index.getName(), bucketName, scopeName, collectionName);
             retryVoid(() -> createSecondaryIndex(bucketName, scopeName, collectionName, index.getName(), index.getIndexKeys(), replicaNum));
           }
         } catch (Exception e) {
