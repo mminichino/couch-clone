@@ -924,6 +924,7 @@ public final class CouchbaseConnect {
         if (config.has("uuid")) {
           config.remove("uuid");
         }
+        config.put("name", searchIndex.getName());
         LOGGER.debug("Search Index:\n{}", searchIndex.getConfig().toPrettyString());
         createSearchIndex(config);
       }
