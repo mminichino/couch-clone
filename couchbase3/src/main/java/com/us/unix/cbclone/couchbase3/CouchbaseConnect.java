@@ -915,6 +915,18 @@ public final class CouchbaseConnect {
           throw new RuntimeException("Index creation failed: " + e.getMessage(), e);
         }
       }
+      for (SearchIndexData searchIndex : bucket.getSearchIndexes()) {
+        LOGGER.info("Creating search index {}", searchIndex.getName());
+        ObjectNode config = searchIndex.getConfig().deepCopy();
+        if (config.has("sourceUUID")) {
+          config.remove("sourceUUID");
+        }
+        if (config.has("uuid")) {
+          config.remove("uuid");
+        }
+        LOGGER.debug("Search Index:\n{}", searchIndex.getConfig().toPrettyString());
+        createSearchIndex(config);
+      }
     }
   }
 }
