@@ -115,8 +115,8 @@ public abstract class DatabaseDriver {
   public void exportDatabase() {
     writeHeader();
     writeTables();
-    writeUsers();
     writeGroups();
+    writeUsers();
     writeData();
     writer.close();
   }
@@ -124,8 +124,8 @@ public abstract class DatabaseDriver {
   public void importDatabase() {
     readHeader();
     readTables();
-    readUsers();
     readGroups();
+    readUsers();
     readData();
     reader.close();
   }

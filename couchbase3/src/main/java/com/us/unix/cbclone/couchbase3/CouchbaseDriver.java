@@ -92,8 +92,8 @@ public class CouchbaseDriver extends DatabaseDriver {
   @Override
   public void importUsers(List<UserData> users) {
     for (UserData user : users) {
-      LOGGER.info("Importing user {}", user.getName());
-      db.createUser(user.getName(), user.getPassword(), user.getGroups(), user.getRoles());
+      LOGGER.info("Importing user {}", user.getId());
+      db.createUser(user.getId(), user.getPassword(), user.getName(), user.getGroups(), user.getRoles());
     }
   }
 

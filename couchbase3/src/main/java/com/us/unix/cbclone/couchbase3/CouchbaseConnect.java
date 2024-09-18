@@ -585,28 +585,45 @@ public final class CouchbaseConnect {
     ));
   }
 
-  public void createUser(String username, String password, List<String> groups, List<RoleData> roles) {
+  public Set<Role> constructRoles(List<RoleData> roles) {
+    if (roles.isEmpty()) {
+      return defaultRoles();
+    } else {
+      Set<Role> roleList = new HashSet<>();
+      for (RoleData roleData : roles) {
+        Role role;
+        if (!roleData.getScopeName().equals("*") || !roleData.getCollectionName().equals("*")) {
+          role = new Role(roleData.getRole(),
+              roleData.getBucketName(),
+              roleData.getScopeName(),
+              roleData.getCollectionName());
+        } else if (!roleData.getBucketName().equals("*")) {
+          role = new Role(roleData.getRole(), roleData.getBucketName());
+        } else {
+          role = new Role(roleData.getRole());
+        }
+        roleList.add(role);
+      }
+      return roleList;
+    }
+  }
+
+  public void createUser(String userName, String passWord, String fullName, List<String> groups, List<RoleData> roles) {
     UserManager um = cluster.users();
-    User user = new User(username);
+    User user = new User(userName);
     if (!groups.isEmpty()) {
       user.groups(groups);
     }
-    if (roles.isEmpty()) {
-      user.roles(defaultRoles());
+    user.roles(constructRoles(roles));
+    if (passWord != null && !passWord.isEmpty()) {
+      user.password(passWord);
     } else {
-      List<Role> roleList = new ArrayList<>();
-      for (RoleData roleData : roles) {
-        Role role = new Role(roleData.getRole(),
-            roleData.getBucketName(),
-            roleData.getScopeName(),
-            roleData.getCollectionName());
-        roleList.add(role);
-      }
-      user.roles(roleList);
-    }
-    if (password != null && !password.isEmpty()) {
       user.password(password);
     }
+    if (fullName != null && !fullName.isEmpty()) {
+      user.displayName(fullName);
+    }
+    LOGGER.debug("Creating user {}", user);
     um.upsertUser(user);
   }
 
@@ -616,19 +633,8 @@ public final class CouchbaseConnect {
     if (description != null && !description.isEmpty()) {
       group.description(description);
     }
-    if (roles.isEmpty()) {
-      group.roles(defaultRoles());
-    } else {
-      List<Role> roleList = new ArrayList<>();
-      for (RoleData roleData : roles) {
-        Role role = new Role(roleData.getRole(),
-            roleData.getBucketName(),
-            roleData.getScopeName(),
-            roleData.getCollectionName());
-        roleList.add(role);
-      }
-      group.roles(roleList);
-    }
+    group.roles(constructRoles(roles));
+    LOGGER.debug("Creating group {}", group);
     um.upsertGroup(group);
   }
 
@@ -807,6 +813,7 @@ public final class CouchbaseConnect {
 
   public RoleData parseRole(JsonNode role) {
     RoleData r = new RoleData();
+    LOGGER.debug(role.toPrettyString());
     r.setRole(role.get("role").asText());
     r.setBucketName(role.has("bucket_name") ? role.get("bucket_name").asText() : "*");
     r.setScopeName(role.has("scope_name") ? role.get("scope_name").asText() : "*");
@@ -887,16 +894,24 @@ public final class CouchbaseConnect {
       String bucketName = bucket.getName();
       String scopeName = bucket.getScope().getName();
       String collectionName = bucket.getCollection().getName();
+
+      // Create bucket
       LOGGER.info("Creating bucket {}", bucketName);
       createBucket(bucket.getBucket());
+
+      // Create scope
       if (!Objects.equals(scopeName, "_default")) {
         LOGGER.info("Creating scope {}.{}", bucketName, scopeName);
         createScope(bucketName, scopeName);
       }
+
+      // Create collection
       if (!Objects.equals(collectionName, "_default")) {
         LOGGER.info("Creating collection {}.{}.{}", bucketName, scopeName, collectionName);
         createCollection(bucketName, scopeName, collectionName);
       }
+
+      // Create indexes
       for (IndexData index : bucket.getIndexes()) {
         int replicas = index.getNumReplicas();
         if (replicas < 0) {
@@ -915,6 +930,8 @@ public final class CouchbaseConnect {
           throw new RuntimeException("Index creation failed: " + e.getMessage(), e);
         }
       }
+
+      // Create Search Indexes
       for (SearchIndexData searchIndex : bucket.getSearchIndexes()) {
         LOGGER.info("Creating search index {}", searchIndex.getName());
         ObjectNode config = searchIndex.getConfig().deepCopy();
@@ -925,7 +942,7 @@ public final class CouchbaseConnect {
           config.remove("uuid");
         }
         config.put("name", searchIndex.getName());
-        LOGGER.debug("Search Index:\n{}", searchIndex.getConfig().toPrettyString());
+        LOGGER.debug("Search Index config:\n{}", searchIndex.getConfig().toPrettyString());
         createSearchIndex(config);
       }
     }
