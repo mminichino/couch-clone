@@ -15,14 +15,22 @@ import com.couchbase.client.java.document.json.JsonObject;
 import com.couchbase.client.java.document.JsonDocument;
 import com.couchbase.client.java.query.*;
 import com.couchbase.client.java.query.consistency.ScanConsistency;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.us.unix.cbclone.core.*;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Couchbase Connection Utility.
@@ -58,7 +66,7 @@ public final class CouchbaseConnect {
   public int eventingPort;
   private final int ttlSeconds;
   private final ObjectMapper mapper = new ObjectMapper();
-  private JsonNode hostMap = mapper.createObjectNode();
+  private ArrayNode hostMap = mapper.createArrayNode();
   private JsonNode clusterInfo = mapper.createObjectNode();
   public String clusterVersion;
   public int majorRevision;
@@ -207,7 +215,7 @@ public final class CouchbaseConnect {
       cluster.disconnect();
     }
     cluster = null;
-    hostMap = mapper.createObjectNode();
+    hostMap = mapper.createArrayNode();
     clusterInfo = mapper.createObjectNode();
   }
 
@@ -256,9 +264,38 @@ public final class CouchbaseConnect {
     patchRevision = Integer.parseInt(clusterVersion.split("\\.")[2]);
     try {
       clusterInfo = mapper.readTree(clusterData.raw().toString());
-    } catch (JsonProcessingException e) {
+      for (JsonNode node : clusterInfo.get("nodes")) {
+        String hostEntry = node.get("hostname").asText();
+        String[] endpoint = hostEntry.split(":", 2);
+        String hostname = endpoint[0];
+        JsonNode services = node.get("services");
+
+        ObjectNode entry = mapper.createObjectNode();
+        entry.put("hostname", hostname);
+        entry.set("services", services);
+
+        hostMap.add(entry);
+      }
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public boolean searchEnabled() {
+    Stream<JsonNode> stream = StreamSupport.stream(hostMap.spliterator(), false);
+    return stream
+        .map(e -> StreamSupport.stream(e.get("services").spliterator(), false)
+            .map(JsonNode::asText).collect(Collectors.toList()))
+        .anyMatch(l -> l.contains("fts"));
+  }
+
+  public List<String> searchNodes() {
+    Stream<JsonNode> stream = StreamSupport.stream(hostMap.spliterator(), false);
+    return stream
+        .filter(e -> StreamSupport.stream(e.get("services").spliterator(), false)
+            .map(JsonNode::asText).anyMatch(s -> s.equals("fts")))
+        .map(e -> e.get("hostname").asText())
+        .collect(Collectors.toList());
   }
 
   private int getMemQuota() {
@@ -395,22 +432,41 @@ public final class CouchbaseConnect {
     return data;
   }
 
+  public List<String> getStringList(JsonArray node) {
+    List<String> result = new ArrayList<>();
+    node.forEach(item -> result.add(item.toString()));
+    return result;
+  }
+
+  public List<SearchIndexData> getSearchIndexes(String bucket) {
+    List<SearchIndexData> result = new ArrayList<>();
+    if (!searchEnabled()) {
+      return result;
+    }
+    String restNode = searchNodes().get(0);
+    return result;
+  }
+
   public List<IndexData> getIndexes(String bucket, String password) {
     connectBucket(bucket, password);
     List<JsonObject> indexes = query("SELECT * FROM system:indexes;");
     List<IndexData> result = new ArrayList<>();
     for (JsonObject index : indexes) {
+      if (!index.get("keyspace_id").toString().equals(bucket)) {
+        continue;
+      }
+      if (index.containsKey("using") && !index.get("using").toString().equals("gsi")) {
+        continue;
+      }
       if (index.containsKey("is_primary") && index.get("is_primary").toString().equals("true")) {
         IndexData i = new IndexData();
         i.setTable(index.get("keyspace_id").toString());
         i.setNumReplicas(-1);
         i.setPrimary(true);
         result.add(i);
-        continue;
-      }
-      for (Object key : (JsonArray) index.get("index_key")) {
+      } else {
         IndexData i = new IndexData();
-        i.setColumn(key.toString().replace("`", ""));
+        i.setIndexKeys(getStringList((JsonArray) index.get("index_key")));
         i.setTable(index.get("keyspace_id").toString());
         i.setNumReplicas(-1);
         i.setName(index.get("name").toString());
@@ -452,6 +508,7 @@ public final class CouchbaseConnect {
         t.setScope(s);
         t.setCollection(c);
         t.setIndexes(getIndexes(b.getName(), b.getPassword()));
+        t.setSearchIndexes(getSearchIndexes(bucketName));
         result.add(t);
       } catch (Exception e) {
         throw new RuntimeException(e);

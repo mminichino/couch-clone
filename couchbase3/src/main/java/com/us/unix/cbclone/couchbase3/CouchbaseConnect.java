@@ -453,6 +453,31 @@ public final class CouchbaseConnect {
   }
 
   public void createBucket(BucketData bucketData) {
+    switch (bucketData.getType()) {
+      case "membase":
+        bucketData.setType("COUCHBASE");
+        break;
+      case "ephemeral":
+        bucketData.setType("EPHEMERAL");
+        break;
+      case "memcached":
+        bucketData.setType("MEMCACHED");
+        break;
+    }
+    switch (bucketData.getResolution()) {
+      case "seqno":
+        bucketData.setResolution("SEQUENCE_NUMBER");
+        break;
+      case "lww":
+        bucketData.setResolution("TIMESTAMP");
+        break;
+      case "custom":
+        bucketData.setResolution("CUSTOM");
+        break;
+    }
+    if (bucketData.getQuota() == 0) {
+      bucketData.setQuota(128);
+    }
     BucketSettings bucketSettings = BucketSettings.create(bucketData.getName())
         .flushEnabled(false)
         .replicaIndexes(true)
@@ -557,6 +582,7 @@ public final class CouchbaseConnect {
         .numReplicas(replicaCount)
         .ignoreIfExists(true);
 
+    LOGGER.debug("Creating GSI: {} {} {}", indexName, indexKeys, options);
     queryIndexMgr.createIndex(indexName, indexKeys, options);
     queryIndexMgr.watchIndexes(Collections.singletonList(indexName), Duration.ofSeconds(10));
   }
@@ -915,10 +941,11 @@ public final class CouchbaseConnect {
       for (IndexData index : bucket.getIndexes()) {
         int replicas = index.getNumReplicas();
         if (replicas < 0) {
-          replicas = (int) getIndexNodeCount();
+          replicas = (int) getIndexNodeCount() - 1;
         }
         final int replicaNum = replicas;
         try {
+          LOGGER.info("{} {} {} {} {} {}", bucketName, scopeName, collectionName, index.getName(), index.getIndexKeys(), replicaNum);
           if (index.isPrimary()) {
             LOGGER.info("Creating primary index on keyspace {}.{}.{}", bucketName, scopeName, collectionName);
             retryVoid(() -> createPrimaryIndex(bucketName, scopeName, collectionName, replicaNum));

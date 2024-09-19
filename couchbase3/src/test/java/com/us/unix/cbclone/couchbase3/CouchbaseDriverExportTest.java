@@ -23,6 +23,9 @@ public class CouchbaseDriverExportTest {
       e.printStackTrace(System.err);
     }
 
+    String[] parts = propertyFile.split("\\.");
+    properties.put("cbclone.sessionName", parts[0] + parts[1]);
+
     DatabaseDriver driver = new CouchbaseDriver();
 
     driver.init(properties);

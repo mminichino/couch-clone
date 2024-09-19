@@ -7,7 +7,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.io.IOException;
 import java.util.Properties;
 
-public class CouchbaseDriverTest {
+public class CouchbaseDriver2ExportTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"test.4.properties", "test.5.properties", "test.6.properties"})
@@ -22,6 +22,9 @@ public class CouchbaseDriverTest {
       System.out.println("can not open properties file: " + e.getMessage());
       e.printStackTrace(System.err);
     }
+
+    String[] parts = propertyFile.split("\\.");
+    properties.put("cbclone.sessionName", parts[0] + parts[1]);
 
     DatabaseDriver driver = new CouchbaseDriver();
 
