@@ -63,7 +63,7 @@ public final class CouchbaseConnect {
   private String bucketName;
   private final Boolean useSsl;
   public int adminPort;
-  public int eventingPort;
+  public int searchPort;
   private final int ttlSeconds;
   private final ObjectMapper mapper = new ObjectMapper();
   private ArrayNode hostMap = mapper.createArrayNode();
@@ -185,9 +185,11 @@ public final class CouchbaseConnect {
     if (useSsl) {
       couchbasePrefix = "couchbases://";
       adminPort = 18091;
+      searchPort = 18094;
     } else {
       couchbasePrefix = "couchbase://";
       adminPort = 8091;
+      searchPort = 8094;
     }
 
     String connectString = couchbasePrefix + hostname;
@@ -444,6 +446,33 @@ public final class CouchbaseConnect {
       return result;
     }
     String restNode = searchNodes().get(0);
+    REST client = new REST(restNode, username, password, useSsl, searchPort).enableDebug(enableDebug);
+    try {
+      String endpoint = "api/index";
+      JsonNode results = client.get(endpoint).validate().json();
+      if (results.has("indexDefs") && !results.get("indexDefs").isNull()) {
+        Iterator<Map.Entry<String, JsonNode>> indexes = results.get("indexDefs").get("indexDefs").fields();
+        Stream<Map.Entry<String, JsonNode>> stream = StreamSupport.stream(
+            Spliterators.spliteratorUnknownSize(indexes, 0), false);
+        List<JsonNode> indexList = stream.map(Map.Entry::getValue).filter(JsonNode::isObject).collect(Collectors.toList());
+        for (JsonNode index : indexList) {
+          if (!index.get("sourceName").asText().equals(bucket)) {
+            continue;
+          }
+          String bucketName = index.get("sourceName").asText();
+          String scopeName = "_default";
+          String indexName = index.get("name").asText();
+          SearchIndexData i = new SearchIndexData();
+          i.setName(indexName);
+          i.setBucket(bucketName);
+          i.setScope(scopeName);
+          i.setConfig(index);
+          result.add(i);
+        }
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
     return result;
   }
 
@@ -520,9 +549,9 @@ public final class CouchbaseConnect {
   public RoleData parseRole(JsonNode role) {
     RoleData r = new RoleData();
     r.setRole(role.get("role").asText());
-    r.setBucketName(role.has("bucket_name") ? role.get("bucket_name").asText() : null);
-    r.setScopeName(role.has("scope_name") ? role.get("scope_name").asText() : null);
-    r.setCollectionName(role.has("collection_name") ? role.get("collection_name").asText() : null);
+    r.setBucketName(role.hasNonNull("bucket_name") ? role.get("bucket_name").asText() : "*");
+    r.setScopeName(role.hasNonNull("scope_name") ? role.get("scope_name").asText() : "*");
+    r.setCollectionName(role.hasNonNull("collection_name") ? role.get("collection_name").asText() : "*");
     return r;
   }
 

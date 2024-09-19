@@ -841,9 +841,9 @@ public final class CouchbaseConnect {
     RoleData r = new RoleData();
     LOGGER.debug(role.toPrettyString());
     r.setRole(role.get("role").asText());
-    r.setBucketName(role.has("bucket_name") ? role.get("bucket_name").asText() : "*");
-    r.setScopeName(role.has("scope_name") ? role.get("scope_name").asText() : "*");
-    r.setCollectionName(role.has("collection_name") ? role.get("collection_name").asText() : "*");
+    r.setBucketName(role.hasNonNull("bucket_name") ? role.get("bucket_name").asText() : "*");
+    r.setScopeName(role.hasNonNull("scope_name") ? role.get("scope_name").asText() : "*");
+    r.setCollectionName(role.hasNonNull("collection_name") ? role.get("collection_name").asText() : "*");
     return r;
   }
 
@@ -968,6 +968,7 @@ public final class CouchbaseConnect {
         if (config.has("uuid")) {
           config.remove("uuid");
         }
+        config.put("sourceType", "gocbcore");
         config.put("name", searchIndex.getName());
         LOGGER.debug("Search Index config:\n{}", searchIndex.getConfig().toPrettyString());
         createSearchIndex(config);
