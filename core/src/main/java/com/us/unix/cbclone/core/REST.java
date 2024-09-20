@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.us.unix.cbclone.core.exceptions.*;
 import okhttp3.*;
 import okhttp3.logging.HttpLoggingInterceptor;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,12 @@ public class REST {
   public byte[] responseBody;
   public RequestBody requestBody;
   public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+  private int successStart = 200;
+  private int successEnd = 299;
+  private int permissionDeniedCode = 403;
+  private int notFoundCode = 404;
+  private int rateLimitCode = 429;
+  private int serverErrorCode = 500;
 
   public REST(String hostname, String username, String password, Boolean useSsl) {
     this.hostname = hostname;
@@ -127,6 +134,27 @@ public class REST {
     return this;
   }
 
+  public void setSuccessRange(int start, int end) {
+    this.successStart = start;
+    this.successEnd = end;
+  }
+
+  public void setPermissionDeniedCode(int code) {
+    this.permissionDeniedCode = code;
+  }
+
+  public void setNotFoundCode(int code) {
+    this.notFoundCode = code;
+  }
+
+  public void setRateLimitCode(int code) {
+    this.rateLimitCode = code;
+  }
+
+  public void setServerErrorCode(int code) {
+    this.serverErrorCode = code;
+  }
+
   private void execHttpCall(Request request) {
     try {
       LOGGER.debug("Request: {}", request.url());
@@ -191,6 +219,24 @@ public class REST {
       );
     }
     return this;
+  }
+
+  private REST validateResponse() throws HttpResponseException {
+    if (this.responseCode >= successStart && this.responseCode < successEnd) {
+      return this;
+    } else if (this.responseCode == permissionDeniedCode) {
+      throw new PermissionDeniedError(new String(responseBody));
+    } else if (this.responseCode == notFoundCode) {
+      throw new NotFoundError(new String(responseBody));
+    } else if (this.responseCode == rateLimitCode) {
+      throw new RateLimitError(new String(responseBody));
+    } else if (this.responseCode == serverErrorCode) {
+      throw new InternalServerError(new String(responseBody));
+    } else if (this.responseCode >= 400 && this.responseCode < 500) {
+      throw new RetryableError(String.format("code: %d response: %s", this.responseCode, new String(responseBody)));
+    } else {
+      throw new NonRetryableError(String.format("code: %d response: %s", this.responseCode, new String(responseBody)));
+    }
   }
 
   public boolean waitForJsonValue(String endpoint, String key, String value, int retryCount) {
