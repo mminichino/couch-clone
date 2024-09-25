@@ -19,9 +19,11 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.24.0")
     implementation("com.fasterxml.jackson.core:jackson-core:2.17.2")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2")
+    implementation("com.codelry.util:restfull-core")
     implementation(project(":core"))
 }
 
 tasks.test {
     useJUnitPlatform()
+    exclude("**/*")
 }

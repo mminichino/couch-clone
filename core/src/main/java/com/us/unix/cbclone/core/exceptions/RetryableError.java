@@ -1,7 +1,7 @@
 package com.us.unix.cbclone.core.exceptions;
 
-public class RetryableError extends HttpResponseException {
-  public RetryableError(String format) {
+public class RetryableError extends Exception {
+  public RetryableError(String message) {
     super();
   }
 }
